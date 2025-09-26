@@ -1,0 +1,20 @@
+{
+  "daeef0ef-2567-4fa6-b0e0-484698070215": {
+    "template_id": "daeef0ef-2567-4fa6-b0e0-484698070215",
+    "name": "Test Security Template",
+    "description": "Test template for validation",
+    "created_at": "2025-09-26 12:08:44.037375",
+    "updated_at": "2025-09-26 12:08:44.037379",
+    "cis_level": "Level 1",
+    "tags": [
+      "security",
+      "test"
+    ],
+    "policy_ids": [
+      "57570a99-2c1d-4cae-bc0c-63b8ac73951a",
+      "90b072dd-7f50-4750-8b17-e8e56758f9ed"
+    ],
+    "is_active": true,
+    "is_default": false
+  }
+}
