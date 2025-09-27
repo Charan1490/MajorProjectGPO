@@ -164,6 +164,7 @@ class DeploymentJob:
     total_steps: int
     completed_steps: int
     start_time: datetime
+    end_time: Optional[datetime] = None
     estimated_completion: Optional[datetime] = None
     error_message: Optional[str] = None
     log_messages: List[str] = field(default_factory=list)

@@ -4,7 +4,7 @@ CIS Benchmark PDF Parser Main Application
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 import uvicorn
 import json
@@ -44,6 +44,31 @@ from deployment.models_deployment import (
 )
 from deployment.lgpo_utils import LGPOManager
 
+# Import import/export management modules (Step 5)
+from import_export.import_export_manager import ImportExportManager
+from import_export.documentation_manager import DocumentationManager
+from import_export.models_import_export import (
+    ImportExportOperation, ImportValidationResult, ImportConflict,
+    ExportConfiguration, ImportConfiguration, DocumentationItem,
+    ImportExportFormat, ImportExportType, ImportStatus, ConflictResolution,
+    DocumentationType, serialize_import_export_operation
+)
+
+# Import audit management modules (Step 6)
+from audit_engine.audit_manager import AuditManager
+from audit_engine.models_audit import (
+    AuditRun, AuditConfiguration, PolicyAuditResult, AuditSummary,
+    AuditStatus, ComplianceResult, AuditSeverity, AuditScope, ReportFormat,
+    serialize_audit_run
+)
+
+# Import automated remediation and rollback modules (Step 7)
+from remediation.remediation_manager import RemediationManager
+from remediation.models_remediation import (
+    RemediationPlan, RemediationSession, RemediationStatus, RemediationSeverity,
+    BackupType, SystemBackup, RollbackPlan
+)
+
 # Pydantic request models for deployment endpoints
 class CreatePackageRequest(BaseModel):
     name: str
@@ -64,6 +89,109 @@ class CreatePackageRequest(BaseModel):
     verify_before_apply: bool = True
     log_changes: bool = True
     rollback_support: bool = True
+
+# Pydantic request models for import/export endpoints
+class ExportRequest(BaseModel):
+    export_type: str  # policies, templates, groups, tags, documentation, full_backup
+    format: str  # json, csv, yaml, xml
+    item_ids: Optional[List[str]] = None
+    group_names: Optional[List[str]] = None
+    tag_names: Optional[List[str]] = None
+    include_metadata: bool = True
+    include_history: bool = False
+    include_documentation: bool = True
+    compress_output: bool = False
+    filter_criteria: Optional[Dict[str, Any]] = None
+
+class ImportRequest(BaseModel):
+    import_type: str  # policies, templates, groups, tags, documentation
+    format: str  # json, csv, yaml, xml
+    conflict_resolution: str = "prompt"  # skip, overwrite, merge, rename, prompt
+    validate_before_import: bool = True
+    create_backup_before_import: bool = True
+    merge_documentation: bool = True
+    preserve_ids: bool = False
+    skip_invalid_items: bool = True
+
+class DocumentationRequest(BaseModel):
+    title: str
+    content: Optional[str] = None
+    doc_type: str = "text"
+    associated_policies: Optional[List[str]] = None
+    associated_groups: Optional[List[str]] = None
+    associated_templates: Optional[List[str]] = None
+    tags: Optional[List[str]] = None
+
+class AssociateDocumentationRequest(BaseModel):
+    doc_id: str
+    policy_ids: Optional[List[str]] = None
+    group_ids: Optional[List[str]] = None
+    template_ids: Optional[List[str]] = None
+
+# Pydantic request models for audit endpoints
+class AuditConfigurationRequest(BaseModel):
+    name: str
+    description: str = ""
+    scope: str = "full_system"  # full_system, selected_policies, policy_group, cis_level, custom_filter
+    policy_ids: Optional[List[str]] = None
+    group_names: Optional[List[str]] = None
+    cis_levels: Optional[List[int]] = None
+    categories: Optional[List[str]] = None
+    parallel_execution: bool = True
+    max_workers: int = 10
+    timeout_seconds: int = 300
+    generate_report: bool = True
+    report_formats: Optional[List[str]] = None
+    target_system: str = "localhost"
+
+class GenerateReportRequest(BaseModel):
+    audit_id: str
+    format: str = "html"  # html, pdf, csv, json, excel
+    template_name: str = "standard"  # standard, executive, technical
+
+
+# Pydantic request models for remediation endpoints
+class CreateRemediationPlanRequest(BaseModel):
+    name: str
+    description: str
+    audit_id: str
+    target_system: str = "localhost"
+    selective_policies: Optional[List[str]] = None
+    severity_filter: Optional[str] = None
+    create_backup: bool = True
+    backup_type: str = "selective"
+    require_confirmation: bool = True
+    continue_on_error: bool = False
+
+
+class ExecuteRemediationRequest(BaseModel):
+    plan_id: str
+    operator: str
+    confirm_high_risk: bool = False
+    dry_run: bool = False
+
+
+class CreateBackupRequest(BaseModel):
+    name: str
+    description: str
+    backup_type: str  # full_system, registry_only, group_policy, security_settings, selective
+    policies: Optional[List[str]] = None
+    registry_keys: Optional[List[str]] = None
+    gpos: Optional[List[str]] = None
+
+
+class CreateRollbackPlanRequest(BaseModel):
+    name: str
+    description: str
+    backup_id: str
+    selective_rollback: bool = False
+    selected_policies: Optional[List[str]] = None
+
+
+class ExecuteRollbackRequest(BaseModel):
+    rollback_id: str
+    operator: str
+    force_execution: bool = False
 
 # Create the FastAPI app
 app = FastAPI(
@@ -100,6 +228,18 @@ deployment_manager = DeploymentManager()
 
 # Initialize LGPO Manager (Step 4)
 lgpo_manager = LGPOManager()
+
+# Initialize Import/Export Manager (Step 5)
+import_export_manager = ImportExportManager()
+
+# Initialize Documentation Manager (Step 5)
+documentation_manager = DocumentationManager()
+
+# Initialize Audit Manager (Step 6)
+audit_manager = AuditManager()
+
+# Initialize Remediation Manager (Step 7)
+remediation_manager = RemediationManager()
 
 # Utility function to save task status to file
 def save_task_status(task_id: str, status: ExtractionStatus):
@@ -1513,8 +1653,6 @@ async def get_lgpo_status():
 async def download_deployment_package(package_id: str):
     """Download deployment package"""
     try:
-        from fastapi.responses import FileResponse
-        
         package = deployment_manager.get_package(package_id)
         if not package:
             raise HTTPException(status_code=404, detail="Package not found")
@@ -1569,6 +1707,1752 @@ async def validate_deployment_package(package_id: str):
         raise
     except Exception as e:
         print(f"Error validating package: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =================================================================
+# IMPORT/EXPORT API ENDPOINTS (Step 5)
+# =================================================================
+
+@app.post("/import-export/export")
+async def export_data(request: ExportRequest, background_tasks: BackgroundTasks):
+    """Export data in specified format"""
+    try:
+        # Get data based on export type
+        data_to_export = []
+        
+        if request.export_type == "policies":
+            # Export policies from dashboard
+            if request.item_ids:
+                for policy_id in request.item_ids:
+                    if policy_id in dashboard_manager.policies_cache:
+                        data_to_export.append(dashboard_manager.policies_cache[policy_id].dict())
+            else:
+                all_policies = dashboard_manager.get_all_policies(include_metadata=request.include_metadata)
+                data_to_export = all_policies
+        
+        elif request.export_type == "templates":
+            # Export templates
+            if request.item_ids:
+                for template_id in request.item_ids:
+                    template = template_manager.get_template(template_id)
+                    if template:
+                        data_to_export.append(template.dict())
+            else:
+                templates = template_manager.get_all_templates()
+                data_to_export = [t.dict() for t in templates]
+        
+        elif request.export_type == "groups":
+            # Export groups from dashboard
+            if request.group_names:
+                for group_name in request.group_names:
+                    for group in dashboard_manager.groups_cache.values():
+                        if group.name == group_name:
+                            data_to_export.append(group.dict())
+                            break
+            else:
+                groups = dashboard_manager.get_all_groups()
+                data_to_export = groups
+        
+        elif request.export_type == "tags":
+            # Export tags from dashboard
+            if request.tag_names:
+                for tag_name in request.tag_names:
+                    for tag in dashboard_manager.tags_cache.values():
+                        if tag.name == tag_name:
+                            data_to_export.append(tag.dict())
+                            break
+            else:
+                tags = dashboard_manager.get_all_tags()
+                data_to_export = tags
+        
+        elif request.export_type == "documentation":
+            # Export documentation
+            data_to_export = []
+            for doc in documentation_manager.documentation_cache.values():
+                if request.item_ids is None or doc.doc_id in request.item_ids:
+                    data_to_export.append(doc.__dict__)
+        
+        elif request.export_type == "full_backup":
+            # Full system backup
+            data_to_export = {
+                "policies": dashboard_manager.get_all_policies(include_metadata=request.include_metadata),
+                "templates": [t.dict() for t in template_manager.get_all_templates()],
+                "groups": dashboard_manager.get_all_groups(),
+                "tags": dashboard_manager.get_all_tags(),
+                "documentation": [doc.__dict__ for doc in documentation_manager.documentation_cache.values()]
+            }
+        
+        # Apply filters
+        if request.filter_criteria and isinstance(data_to_export, list):
+            filtered_data = []
+            for item in data_to_export:
+                should_include = True
+                for key, value in request.filter_criteria.items():
+                    if key in item and item[key] != value:
+                        should_include = False
+                        break
+                if should_include:
+                    filtered_data.append(item)
+            data_to_export = filtered_data
+        
+        # Create export configuration
+        export_config = ExportConfiguration(
+            export_type=ImportExportType(request.export_type),
+            format=ImportExportFormat(request.format),
+            include_metadata=request.include_metadata,
+            include_history=request.include_history,
+            include_documentation=request.include_documentation,
+            compress_output=request.compress_output
+        )
+        
+        # Perform export
+        operation_id = import_export_manager.export_data(
+            data=data_to_export,
+            config=export_config
+        )
+        
+        operation = import_export_manager.get_operation(operation_id)
+        
+        return {
+            "success": True,
+            "message": f"Export started successfully",
+            "data": {
+                "operation_id": operation_id,
+                "export_type": request.export_type,
+                "format": request.format,
+                "status": operation.status.value,
+                "items_count": len(data_to_export) if isinstance(data_to_export, list) else 1
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error exporting data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/import-export/validate")
+async def validate_import_file(file: UploadFile = File(...)):
+    """Validate import file before importing"""
+    try:
+        # Save uploaded file temporarily
+        temp_filename = f"temp_validate_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file.filename}"
+        temp_path = os.path.join("uploads", temp_filename)
+        
+        async with aiofiles.open(temp_path, 'wb') as temp_file:
+            content = await file.read()
+            await temp_file.write(content)
+        
+        # Validate the file
+        validation_result = import_export_manager.validate_import_file(temp_path)
+        
+        # Clean up temporary file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        
+        return {
+            "success": True,
+            "message": "File validation completed",
+            "data": {
+                "is_valid": validation_result.is_valid,
+                "detected_format": validation_result.detected_format.value if validation_result.detected_format else None,
+                "detected_type": validation_result.detected_type.value if validation_result.detected_type else None,
+                "total_items": validation_result.total_items,
+                "valid_items": validation_result.valid_items,
+                "invalid_items": validation_result.invalid_items,
+                "warnings": validation_result.warnings,
+                "errors": validation_result.errors
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error validating import file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/import-export/import")
+async def import_data(request: ImportRequest, file: UploadFile = File(...)):
+    """Import data from file"""
+    try:
+        # Save uploaded file
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"import_{timestamp}_{file.filename}"
+        file_path = os.path.join("uploads", filename)
+        
+        async with aiofiles.open(file_path, 'wb') as f:
+            content = await file.read()
+            await f.write(content)
+        
+        # Create import configuration
+        import_config = ImportConfiguration(
+            import_type=ImportExportType(request.import_type),
+            format=ImportExportFormat(request.format),
+            conflict_resolution=ConflictResolution(request.conflict_resolution),
+            validate_before_import=request.validate_before_import,
+            create_backup_before_import=request.create_backup_before_import,
+            merge_documentation=request.merge_documentation,
+            preserve_ids=request.preserve_ids,
+            skip_invalid_items=request.skip_invalid_items
+        )
+        
+        # Perform import
+        operation_id = import_export_manager.import_data(file_path, import_config)
+        operation = import_export_manager.get_operation(operation_id)
+        
+        return {
+            "success": True,
+            "message": "Import started successfully",
+            "data": {
+                "operation_id": operation_id,
+                "import_type": request.import_type,
+                "format": request.format,
+                "status": operation.status.value
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error importing data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/import-export/operations")
+async def get_import_export_operations(
+    operation_type: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0
+):
+    """Get import/export operations with filtering"""
+    try:
+        operations = []
+        for operation in import_export_manager.operations_cache.values():
+            # Apply filters
+            if operation_type and operation.operation_type.value != operation_type:
+                continue
+            if status and operation.status.value != status:
+                continue
+            
+            operations.append(serialize_import_export_operation(operation))
+        
+        # Sort by timestamp (newest first)
+        operations.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        # Apply pagination
+        total = len(operations)
+        operations = operations[offset:offset + limit]
+        
+        return {
+            "success": True,
+            "message": f"Retrieved {len(operations)} operations",
+            "data": {
+                "operations": operations,
+                "total": total,
+                "offset": offset,
+                "limit": limit
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error getting operations: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/import-export/operations/{operation_id}")
+async def get_import_export_operation(operation_id: str):
+    """Get specific import/export operation"""
+    try:
+        operation = import_export_manager.get_operation(operation_id)
+        if not operation:
+            raise HTTPException(status_code=404, detail="Operation not found")
+        
+        return {
+            "success": True,
+            "message": "Operation retrieved successfully",
+            "data": serialize_import_export_operation(operation)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting operation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/import-export/operations/{operation_id}/rollback")
+async def rollback_import_operation(operation_id: str):
+    """Rollback an import operation"""
+    try:
+        success = import_export_manager.rollback_import(operation_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Operation not found or cannot be rolled back")
+        
+        return {
+            "success": True,
+            "message": "Import operation rolled back successfully",
+            "data": {"operation_id": operation_id}
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error rolling back operation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/import-export/operations/{operation_id}")
+async def delete_import_export_operation(operation_id: str):
+    """Delete import/export operation record"""
+    try:
+        success = import_export_manager.delete_operation(operation_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Operation not found")
+        
+        return {
+            "success": True,
+            "message": "Operation deleted successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error deleting operation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/import-export/download/{operation_id}")
+async def download_export_file(operation_id: str):
+    """Download exported file"""
+    try:
+        operation = import_export_manager.get_operation(operation_id)
+        if not operation:
+            raise HTTPException(status_code=404, detail="Operation not found")
+        
+        if operation.operation_type != ImportExportType.EXPORT:
+            raise HTTPException(status_code=400, detail="Operation is not an export")
+        
+        if operation.status != ImportStatus.COMPLETED:
+            raise HTTPException(status_code=400, detail="Export is not completed")
+        
+        if not operation.file_path or not os.path.exists(operation.file_path):
+            raise HTTPException(status_code=404, detail="Export file not found")
+        
+        filename = os.path.basename(operation.file_path)
+        
+        return FileResponse(
+            path=operation.file_path,
+            filename=filename,
+            media_type='application/octet-stream'
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error downloading export: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# =================================================================
+# DOCUMENTATION MANAGEMENT API ENDPOINTS (Step 5)
+# =================================================================
+
+@app.post("/documentation")
+async def create_documentation(request: DocumentationRequest):
+    """Create new documentation item"""
+    try:
+        doc_id = documentation_manager.create_documentation(
+            title=request.title,
+            content=request.content,
+            doc_type=DocumentationType(request.doc_type),
+            associated_policies=request.associated_policies,
+            associated_groups=request.associated_groups,
+            associated_templates=request.associated_templates,
+            tags=request.tags
+        )
+        
+        return {
+            "success": True,
+            "message": "Documentation created successfully",
+            "data": {"doc_id": doc_id}
+        }
+        
+    except Exception as e:
+        print(f"Error creating documentation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/documentation/import")
+async def import_documentation_file(file: UploadFile = File(...)):
+    """Import documentation from file"""
+    try:
+        # Save uploaded file
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"doc_{timestamp}_{file.filename}"
+        file_path = os.path.join("uploads", filename)
+        
+        async with aiofiles.open(file_path, 'wb') as f:
+            content = await file.read()
+            await f.write(content)
+        
+        # Import documentation
+        doc_id = documentation_manager.import_documentation_file(file_path)
+        
+        return {
+            "success": True,
+            "message": "Documentation imported successfully",
+            "data": {"doc_id": doc_id, "file_path": file_path}
+        }
+        
+    except Exception as e:
+        print(f"Error importing documentation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/documentation")
+async def get_all_documentation(
+    doc_type: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0
+):
+    """Get all documentation items"""
+    try:
+        all_docs = list(documentation_manager.documentation_cache.values())
+        
+        # Apply type filter
+        if doc_type:
+            all_docs = [doc for doc in all_docs if doc.doc_type.value == doc_type]
+        
+        # Sort by creation time (newest first)
+        all_docs.sort(key=lambda x: x.created_at, reverse=True)
+        
+        # Apply pagination
+        total = len(all_docs)
+        docs = all_docs[offset:offset + limit]
+        
+        # Convert to dict
+        docs_data = [doc.__dict__ for doc in docs]
+        for doc_data in docs_data:
+            # Convert datetime to string
+            if 'created_at' in doc_data and doc_data['created_at']:
+                doc_data['created_at'] = doc_data['created_at'].isoformat()
+            if 'updated_at' in doc_data and doc_data['updated_at']:
+                doc_data['updated_at'] = doc_data['updated_at'].isoformat()
+            # Convert enum to string
+            if 'doc_type' in doc_data and hasattr(doc_data['doc_type'], 'value'):
+                doc_data['doc_type'] = doc_data['doc_type'].value
+        
+        return {
+            "success": True,
+            "message": f"Retrieved {len(docs)} documentation items",
+            "data": {
+                "documentation": docs_data,
+                "total": total,
+                "offset": offset,
+                "limit": limit
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error getting documentation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/documentation/{doc_id}")
+async def get_documentation(doc_id: str):
+    """Get specific documentation item"""
+    try:
+        doc = documentation_manager.get_documentation(doc_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail="Documentation not found")
+        
+        doc_data = doc.__dict__.copy()
+        # Convert datetime to string
+        if 'created_at' in doc_data and doc_data['created_at']:
+            doc_data['created_at'] = doc_data['created_at'].isoformat()
+        if 'updated_at' in doc_data and doc_data['updated_at']:
+            doc_data['updated_at'] = doc_data['updated_at'].isoformat()
+        # Convert enum to string
+        if 'doc_type' in doc_data and hasattr(doc_data['doc_type'], 'value'):
+            doc_data['doc_type'] = doc_data['doc_type'].value
+        
+        return {
+            "success": True,
+            "message": "Documentation retrieved successfully",
+            "data": doc_data
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting documentation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/documentation/{doc_id}")
+async def update_documentation(
+    doc_id: str,
+    title: Optional[str] = None,
+    content: Optional[str] = None,
+    tags: Optional[List[str]] = None
+):
+    """Update documentation item"""
+    try:
+        success = documentation_manager.update_documentation(
+            doc_id=doc_id,
+            title=title,
+            content=content,
+            tags=tags
+        )
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Documentation not found")
+        
+        return {
+            "success": True,
+            "message": "Documentation updated successfully",
+            "data": {"doc_id": doc_id}
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error updating documentation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/documentation/{doc_id}")
+async def delete_documentation(doc_id: str):
+    """Delete documentation item"""
+    try:
+        success = documentation_manager.delete_documentation(doc_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Documentation not found")
+        
+        return {
+            "success": True,
+            "message": "Documentation deleted successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error deleting documentation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/documentation/{doc_id}/associate")
+async def associate_documentation(doc_id: str, request: AssociateDocumentationRequest):
+    """Associate documentation with policies, groups, or templates"""
+    try:
+        success = documentation_manager.associate_documentation(
+            doc_id=doc_id,
+            policy_ids=request.policy_ids,
+            group_ids=request.group_ids,
+            template_ids=request.template_ids
+        )
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Documentation not found")
+        
+        return {
+            "success": True,
+            "message": "Documentation associations updated successfully",
+            "data": {"doc_id": doc_id}
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error associating documentation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/documentation/search")
+async def search_documentation(
+    query: str,
+    doc_type: Optional[str] = None,
+    policy_id: Optional[str] = None,
+    group_id: Optional[str] = None,
+    template_id: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    limit: int = 50
+):
+    """Search documentation"""
+    try:
+        results = documentation_manager.search_documentation(
+            query=query,
+            doc_type=DocumentationType(doc_type) if doc_type else None,
+            policy_id=policy_id,
+            group_id=group_id,
+            template_id=template_id,
+            tags=tags,
+            limit=limit
+        )
+        
+        # Convert to dict
+        docs_data = []
+        for doc in results:
+            doc_data = doc.__dict__.copy()
+            # Convert datetime to string
+            if 'created_at' in doc_data and doc_data['created_at']:
+                doc_data['created_at'] = doc_data['created_at'].isoformat()
+            if 'updated_at' in doc_data and doc_data['updated_at']:
+                doc_data['updated_at'] = doc_data['updated_at'].isoformat()
+            # Convert enum to string
+            if 'doc_type' in doc_data and hasattr(doc_data['doc_type'], 'value'):
+                doc_data['doc_type'] = doc_data['doc_type'].value
+            docs_data.append(doc_data)
+        
+        return {
+            "success": True,
+            "message": f"Found {len(results)} documentation items",
+            "data": {
+                "documentation": docs_data,
+                "query": query,
+                "total": len(results)
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error searching documentation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/documentation/statistics")
+async def get_documentation_statistics():
+    """Get documentation statistics"""
+    try:
+        stats = documentation_manager.get_documentation_statistics()
+        
+        return {
+            "success": True,
+            "message": "Documentation statistics retrieved successfully",
+            "data": stats
+        }
+        
+    except Exception as e:
+        print(f"Error getting documentation statistics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =================================================================
+# AUDIT, TEST & REPORTING API ENDPOINTS (Step 6)
+# =================================================================
+
+@app.post("/audit/configurations")
+async def create_audit_configuration(request: AuditConfigurationRequest):
+    """Create new audit configuration"""
+    try:
+        # Convert string scope to enum
+        scope = AuditScope(request.scope)
+        
+        # Convert report formats
+        report_formats = []
+        if request.report_formats:
+            for fmt in request.report_formats:
+                try:
+                    report_formats.append(ReportFormat(fmt))
+                except ValueError:
+                    pass
+        else:
+            report_formats = [ReportFormat.HTML, ReportFormat.CSV]
+        
+        # Create configuration
+        config = audit_manager.create_audit_configuration(
+            name=request.name,
+            description=request.description,
+            scope=scope,
+            policy_ids=request.policy_ids or [],
+            group_names=request.group_names or [],
+            cis_levels=request.cis_levels or [1, 2],
+            categories=request.categories or [],
+            parallel_execution=request.parallel_execution,
+            max_workers=request.max_workers,
+            timeout_seconds=request.timeout_seconds,
+            generate_report=request.generate_report,
+            report_formats=report_formats,
+            target_system=request.target_system
+        )
+        
+        return {
+            "success": True,
+            "message": "Audit configuration created successfully",
+            "data": {
+                "audit_id": config.audit_id,
+                "name": config.name,
+                "scope": config.scope.value,
+                "created_at": config.created_at.isoformat()
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error creating audit configuration: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/audit/configurations")
+async def get_audit_configurations():
+    """Get all audit configurations"""
+    try:
+        configurations = []
+        for config_id, config in audit_manager.configuration_cache.items():
+            config_data = config.__dict__ if hasattr(config, '__dict__') else config
+            configurations.append({
+                "audit_id": config_id,
+                "name": config_data.get("name", "Unknown"),
+                "description": config_data.get("description", ""),
+                "scope": config_data.get("scope", "full_system"),
+                "created_at": config_data.get("created_at", "")
+            })
+        
+        return {
+            "success": True,
+            "message": f"Retrieved {len(configurations)} audit configurations",
+            "data": {
+                "configurations": configurations,
+                "total": len(configurations)
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error getting audit configurations: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/audit/start")
+async def start_audit(request: AuditConfigurationRequest):
+    """Start a new audit with the given configuration"""
+    try:
+        # Create configuration
+        scope = AuditScope(request.scope)
+        
+        config = AuditConfiguration(
+            name=request.name,
+            description=request.description,
+            scope=scope,
+            policy_ids=request.policy_ids or [],
+            group_names=request.group_names or [],
+            cis_levels=request.cis_levels or [1, 2],
+            categories=request.categories or [],
+            parallel_execution=request.parallel_execution,
+            max_workers=request.max_workers,
+            timeout_seconds=request.timeout_seconds,
+            generate_report=request.generate_report,
+            target_system=request.target_system
+        )
+        
+        # Start audit
+        audit_id = audit_manager.start_audit(config, "dashboard")
+        
+        return {
+            "success": True,
+            "message": "Audit started successfully",
+            "data": {
+                "audit_id": audit_id,
+                "name": config.name,
+                "scope": config.scope.value
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error starting audit: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/audit/runs")
+async def get_audit_runs(
+    status: Optional[str] = None,
+    limit: int = 50
+):
+    """Get audit runs with optional status filtering"""
+    try:
+        history = audit_manager.get_audit_history(limit)
+        
+        # Filter by status if provided
+        if status:
+            history = [h for h in history if h.get('status') == status]
+        
+        return {
+            "success": True,
+            "message": f"Retrieved {len(history)} audit runs",
+            "data": {
+                "audit_runs": history,
+                "total": len(history)
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error getting audit runs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/audit/runs/{audit_id}")
+async def get_audit_run(audit_id: str):
+    """Get specific audit run with detailed results"""
+    try:
+        audit_run = audit_manager.get_audit_status(audit_id)
+        if not audit_run:
+            raise HTTPException(status_code=404, detail="Audit run not found")
+        
+        # Serialize the audit run
+        serialized_run = serialize_audit_run(audit_run)
+        
+        return {
+            "success": True,
+            "message": "Audit run retrieved successfully",
+            "data": serialized_run
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting audit run: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/audit/runs/{audit_id}/status")
+async def get_audit_status(audit_id: str):
+    """Get current status of an audit run"""
+    try:
+        audit_run = audit_manager.get_audit_status(audit_id)
+        if not audit_run:
+            raise HTTPException(status_code=404, detail="Audit run not found")
+        
+        return {
+            "success": True,
+            "message": "Audit status retrieved successfully",
+            "data": {
+                "audit_id": audit_run.audit_id,
+                "name": audit_run.configuration.name,
+                "status": audit_run.status.value,
+                "progress_percentage": audit_run.progress_percentage,
+                "current_policy": audit_run.current_policy,
+                "completed_policies": audit_run.completed_policies,
+                "start_time": audit_run.start_time.isoformat() if audit_run.start_time else None,
+                "end_time": audit_run.end_time.isoformat() if audit_run.end_time else None,
+                "duration_seconds": audit_run.duration_seconds,
+                "error_message": audit_run.error_message,
+                "compliance_percentage": audit_run.summary.compliance_percentage if audit_run.summary else None
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting audit status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/audit/runs/{audit_id}/cancel")
+async def cancel_audit_run(audit_id: str):
+    """Cancel a running audit"""
+    try:
+        success = audit_manager.cancel_audit(audit_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Audit run not found or cannot be cancelled")
+        
+        return {
+            "success": True,
+            "message": "Audit run cancelled successfully",
+            "data": {"audit_id": audit_id}
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error cancelling audit: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/audit/runs/{audit_id}")
+async def delete_audit_run(audit_id: str):
+    """Delete audit run and associated data"""
+    try:
+        success = audit_manager.delete_audit(audit_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Audit run not found or cannot be deleted")
+        
+        return {
+            "success": True,
+            "message": "Audit run deleted successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error deleting audit run: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/audit/reports/generate")
+async def generate_audit_report(request: GenerateReportRequest):
+    """Generate audit report in specified format"""
+    try:
+        report_format = ReportFormat(request.format)
+        
+        report_path = audit_manager.generate_report(
+            request.audit_id,
+            report_format,
+            request.template_name
+        )
+        
+        return {
+            "success": True,
+            "message": "Report generated successfully",
+            "data": {
+                "audit_id": request.audit_id,
+                "format": request.format,
+                "template": request.template_name,
+                "report_path": report_path,
+                "download_url": f"/audit/reports/download/{request.audit_id}?format={request.format}"
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error generating report: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/audit/reports/download/{audit_id}")
+async def download_audit_report(audit_id: str, format: str = "html"):
+    """Download generated audit report"""
+    try:
+        # Find the report file
+        audit_run = audit_manager.get_audit_status(audit_id)
+        if not audit_run:
+            raise HTTPException(status_code=404, detail="Audit run not found")
+        
+        # Get report path from audit run or generate new report
+        report_path = None
+        if format in audit_run.report_paths:
+            report_path = audit_run.report_paths[format]
+        else:
+            # Generate report if not exists
+            report_format = ReportFormat(format)
+            report_path = audit_manager.generate_report(audit_id, report_format)
+        
+        if not report_path or not os.path.exists(report_path):
+            raise HTTPException(status_code=404, detail="Report file not found")
+        
+        filename = os.path.basename(report_path)
+        
+        # Determine media type
+        media_type_map = {
+            "html": "text/html",
+            "csv": "text/csv",
+            "json": "application/json",
+            "pdf": "application/pdf",
+            "excel": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        }
+        
+        media_type = media_type_map.get(format, "application/octet-stream")
+        
+        return FileResponse(
+            path=report_path,
+            filename=filename,
+            media_type=media_type
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error downloading report: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/audit/statistics")
+async def get_audit_statistics():
+    """Get comprehensive audit statistics"""
+    try:
+        stats = audit_manager.get_audit_statistics()
+        
+        return {
+            "success": True,
+            "message": "Audit statistics retrieved successfully",
+            "data": stats
+        }
+        
+    except Exception as e:
+        print(f"Error getting audit statistics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/audit/trends")
+async def get_compliance_trends(days: int = 30, system_id: Optional[str] = None):
+    """Get compliance trends over specified period"""
+    try:
+        trends = audit_manager.get_compliance_trends(system_id, days)
+        
+        return {
+            "success": True,
+            "message": "Compliance trends retrieved successfully",
+            "data": trends
+        }
+        
+    except Exception as e:
+        print(f"Error getting compliance trends: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/audit/search")
+async def search_audit_results(
+    query: str,
+    audit_ids: Optional[List[str]] = None,
+    result_types: Optional[List[str]] = None,
+    limit: int = 100
+):
+    """Search audit results across multiple audits"""
+    try:
+        # Convert result types to enums if provided
+        compliance_results = None
+        if result_types:
+            compliance_results = []
+            for result_type in result_types:
+                try:
+                    compliance_results.append(ComplianceResult(result_type))
+                except ValueError:
+                    pass
+        
+        results = audit_manager.search_audit_results(
+            query=query,
+            audit_ids=audit_ids,
+            result_types=compliance_results
+        )
+        
+        # Limit results
+        results = results[:limit]
+        
+        return {
+            "success": True,
+            "message": f"Found {len(results)} matching results",
+            "data": {
+                "results": results,
+                "query": query,
+                "total": len(results)
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error searching audit results: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/audit/compare")
+async def compare_audit_runs(audit_id1: str, audit_id2: str):
+    """Compare results between two audit runs"""
+    try:
+        comparison = audit_manager.compare_audits(audit_id1, audit_id2)
+        
+        return {
+            "success": True,
+            "message": "Audit comparison completed successfully",
+            "data": comparison
+        }
+        
+    except Exception as e:
+        print(f"Error comparing audits: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/audit/runs/{audit_id}/remediation")
+async def get_remediation_summary(audit_id: str):
+    """Get remediation summary for failed policies"""
+    try:
+        remediation = audit_manager.get_remediation_summary(audit_id)
+        
+        return {
+            "success": True,
+            "message": "Remediation summary retrieved successfully",
+            "data": remediation
+        }
+        
+    except Exception as e:
+        print(f"Error getting remediation summary: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/audit/export")
+async def export_audit_data(audit_ids: Optional[List[str]] = None):
+    """Export audit data for backup or analysis"""
+    try:
+        export_file = audit_manager.export_audit_data(audit_ids)
+        
+        return {
+            "success": True,
+            "message": "Audit data exported successfully",
+            "data": {
+                "export_file": export_file,
+                "download_url": f"/audit/export/download/{os.path.basename(export_file)}"
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error exporting audit data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/audit/export/download/{filename}")
+async def download_audit_export(filename: str):
+    """Download exported audit data"""
+    try:
+        export_path = os.path.join(audit_manager.data_dir, filename)
+        
+        if not os.path.exists(export_path):
+            raise HTTPException(status_code=404, detail="Export file not found")
+        
+        return FileResponse(
+            path=export_path,
+            filename=filename,
+            media_type="application/json"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error downloading export: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/audit/cleanup")
+async def cleanup_old_audits(days_to_keep: int = 90):
+    """Clean up old audit results"""
+    try:
+        deleted_count = audit_manager.cleanup_old_audits(days_to_keep)
+        
+        return {
+            "success": True,
+            "message": f"Cleaned up {deleted_count} old audit results",
+            "data": {
+                "deleted_count": deleted_count,
+                "days_to_keep": days_to_keep
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error cleaning up audits: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/audit/system-info")
+async def get_system_info():
+    """Get current system information for audit context"""
+    try:
+        system_info = audit_manager.audit_engine.get_system_info()
+        
+        return {
+            "success": True,
+            "message": "System information retrieved successfully",
+            "data": {
+                "hostname": system_info.hostname,
+                "os_version": system_info.os_version,
+                "os_build": system_info.os_build,
+                "architecture": system_info.architecture,
+                "domain": system_info.domain,
+                "workgroup": system_info.workgroup,
+                "scan_timestamp": system_info.scan_timestamp.isoformat(),
+                "last_boot": system_info.last_boot.isoformat() if system_info.last_boot else None,
+                "total_memory": system_info.total_memory,
+                "cpu_info": system_info.cpu_info
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error getting system info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================
+# REMEDIATION ENDPOINTS (STEP 7)
+# =============================================
+
+@app.post("/remediation/plan/create")
+async def create_remediation_plan(request: CreateRemediationPlanRequest):
+    """Create a new remediation plan from audit results"""
+    try:
+        plan = remediation_manager.create_remediation_plan(
+            name=request.name,
+            description=request.description,
+            audit_id=request.audit_id,
+            target_system=request.target_system,
+            selective_policies=request.selective_policies,
+            severity_filter=RemediationSeverity(request.severity_filter) if request.severity_filter else None,
+            create_backup=request.create_backup,
+            backup_type=BackupType(request.backup_type),
+            require_confirmation=request.require_confirmation,
+            continue_on_error=request.continue_on_error
+        )
+        
+        return {
+            "success": True,
+            "message": "Remediation plan created successfully",
+            "data": {
+                "plan_id": plan.id,
+                "name": plan.name,
+                "description": plan.description,
+                "total_actions": len(plan.actions),
+                "high_risk_actions": len([a for a in plan.actions if a.severity == RemediationSeverity.HIGH]),
+                "backup_required": plan.backup_required,
+                "requires_reboot": plan.requires_reboot,
+                "estimated_duration": plan.estimated_duration,
+                "created_at": plan.created_at.isoformat()
+            }
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"Error creating remediation plan: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/remediation/plans")
+async def list_remediation_plans():
+    """Get all remediation plans with summary information"""
+    try:
+        plans = remediation_manager.list_remediation_plans()
+        
+        plans_data = []
+        for plan in plans:
+            plans_data.append({
+                "id": plan.id,
+                "name": plan.name,
+                "description": plan.description,
+                "status": plan.status.value,
+                "target_system": plan.target_system,
+                "total_actions": len(plan.actions),
+                "completed_actions": len([a for a in plan.actions if a.status == RemediationStatus.COMPLETED]),
+                "backup_required": plan.backup_required,
+                "requires_reboot": plan.requires_reboot,
+                "created_at": plan.created_at.isoformat(),
+                "updated_at": plan.updated_at.isoformat() if plan.updated_at else None
+            })
+        
+        return {
+            "success": True,
+            "message": f"Retrieved {len(plans)} remediation plans",
+            "data": {
+                "plans": plans_data,
+                "total_count": len(plans)
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error listing remediation plans: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/remediation/plan/{plan_id}")
+async def get_remediation_plan_details(plan_id: str):
+    """Get detailed information about a specific remediation plan"""
+    try:
+        plan = remediation_manager.get_remediation_plan(plan_id)
+        if not plan:
+            raise HTTPException(status_code=404, detail="Remediation plan not found")
+        
+        actions_data = []
+        for action in plan.actions:
+            actions_data.append({
+                "id": action.id,
+                "type": action.type.value,
+                "description": action.description,
+                "policy_id": action.policy_id,
+                "severity": action.severity.value,
+                "status": action.status.value,
+                "target_key": action.target_key,
+                "target_value": action.target_value,
+                "backup_value": action.backup_value,
+                "requires_reboot": action.requires_reboot,
+                "estimated_duration": action.estimated_duration,
+                "error_message": action.error_message
+            })
+        
+        return {
+            "success": True,
+            "message": "Remediation plan details retrieved successfully",
+            "data": {
+                "id": plan.id,
+                "name": plan.name,
+                "description": plan.description,
+                "status": plan.status.value,
+                "target_system": plan.target_system,
+                "audit_id": plan.audit_id,
+                "backup_id": plan.backup_id,
+                "actions": actions_data,
+                "backup_required": plan.backup_required,
+                "requires_reboot": plan.requires_reboot,
+                "estimated_duration": plan.estimated_duration,
+                "created_at": plan.created_at.isoformat(),
+                "updated_at": plan.updated_at.isoformat() if plan.updated_at else None,
+                "execution_log": plan.execution_log
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting remediation plan: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/remediation/plan/{plan_id}/execute")
+async def execute_remediation_plan(plan_id: str, request: ExecuteRemediationRequest):
+    """Execute a remediation plan"""
+    try:
+        if request.plan_id != plan_id:
+            raise HTTPException(status_code=400, detail="Plan ID mismatch")
+        
+        session = remediation_manager.execute_remediation_plan(
+            plan_id=plan_id,
+            operator=request.operator,
+            confirm_high_risk=request.confirm_high_risk,
+            dry_run=request.dry_run
+        )
+        
+        return {
+            "success": True,
+            "message": "Remediation execution started successfully" if not request.dry_run else "Dry run completed successfully",
+            "data": {
+                "session_id": session.id,
+                "plan_id": session.plan_id,
+                "operator": session.operator,
+                "dry_run": session.dry_run,
+                "status": session.status.value,
+                "started_at": session.started_at.isoformat(),
+                "total_actions": session.total_actions,
+                "completed_actions": session.completed_actions,
+                "failed_actions": session.failed_actions,
+                "warnings": session.warnings
+            }
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"Error executing remediation plan: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/remediation/session/{session_id}/status")
+async def get_remediation_session_status(session_id: str):
+    """Get the status of a remediation session"""
+    try:
+        session = remediation_manager.get_remediation_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Remediation session not found")
+        
+        return {
+            "success": True,
+            "message": "Remediation session status retrieved successfully",
+            "data": {
+                "session_id": session.id,
+                "plan_id": session.plan_id,
+                "status": session.status.value,
+                "progress": (session.completed_actions / session.total_actions * 100) if session.total_actions > 0 else 0,
+                "operator": session.operator,
+                "dry_run": session.dry_run,
+                "started_at": session.started_at.isoformat(),
+                "completed_at": session.completed_at.isoformat() if session.completed_at else None,
+                "total_actions": session.total_actions,
+                "completed_actions": session.completed_actions,
+                "failed_actions": session.failed_actions,
+                "warnings": session.warnings,
+                "error_message": session.error_message,
+                "requires_reboot": session.requires_reboot
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting remediation session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/remediation/plan/{plan_id}/cancel")
+async def cancel_remediation_plan(plan_id: str):
+    """Cancel an active remediation plan execution"""
+    try:
+        result = remediation_manager.cancel_remediation_plan(plan_id)
+        
+        return {
+            "success": True,
+            "message": "Remediation plan cancelled successfully",
+            "data": {
+                "plan_id": plan_id,
+                "cancelled": result,
+                "cancelled_at": datetime.now().isoformat()
+            }
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"Error cancelling remediation plan: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# =============================================
+# BACKUP ENDPOINTS
+# =============================================
+
+@app.post("/backup/create")
+async def create_backup(request: CreateBackupRequest):
+    """Create a system backup"""
+    try:
+        backup = remediation_manager.create_backup(
+            name=request.name,
+            description=request.description,
+            backup_type=BackupType(request.backup_type),
+            policies=request.policies,
+            registry_keys=request.registry_keys,
+            gpos=request.gpos
+        )
+        
+        return {
+            "success": True,
+            "message": "System backup created successfully",
+            "data": {
+                "backup_id": backup.id,
+                "name": backup.name,
+                "description": backup.description,
+                "backup_type": backup.backup_type.value,
+                "file_path": backup.file_path,
+                "file_size": backup.file_size,
+                "created_at": backup.created_at.isoformat(),
+                "system_info": {
+                    "hostname": backup.system_info.hostname,
+                    "os_version": backup.system_info.os_version,
+                    "scan_timestamp": backup.system_info.scan_timestamp.isoformat()
+                }
+            }
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"Error creating backup: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/backup/list")
+async def list_backups():
+    """Get all available system backups"""
+    try:
+        backups = remediation_manager.list_backups()
+        
+        backups_data = []
+        for backup in backups:
+            backups_data.append({
+                "id": backup.id,
+                "name": backup.name,
+                "description": backup.description,
+                "backup_type": backup.backup_type.value,
+                "file_path": backup.file_path,
+                "file_size": backup.file_size,
+                "policies_included": len(backup.policies_included) if backup.policies_included else 0,
+                "created_at": backup.created_at.isoformat(),
+                "hostname": backup.system_info.hostname,
+                "os_version": backup.system_info.os_version
+            })
+        
+        return {
+            "success": True,
+            "message": f"Retrieved {len(backups)} backups",
+            "data": {
+                "backups": backups_data,
+                "total_count": len(backups)
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error listing backups: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/backup/{backup_id}")
+async def get_backup_details(backup_id: str):
+    """Get detailed information about a specific backup"""
+    try:
+        backup = remediation_manager.get_backup(backup_id)
+        if not backup:
+            raise HTTPException(status_code=404, detail="Backup not found")
+        
+        return {
+            "success": True,
+            "message": "Backup details retrieved successfully",
+            "data": {
+                "id": backup.id,
+                "name": backup.name,
+                "description": backup.description,
+                "backup_type": backup.backup_type.value,
+                "file_path": backup.file_path,
+                "file_size": backup.file_size,
+                "policies_included": backup.policies_included,
+                "registry_keys": backup.registry_keys,
+                "gpos": backup.gpos,
+                "integrity_hash": backup.integrity_hash,
+                "validation_status": backup.validation_status,
+                "created_at": backup.created_at.isoformat(),
+                "system_info": {
+                    "hostname": backup.system_info.hostname,
+                    "os_version": backup.system_info.os_version,
+                    "os_build": backup.system_info.os_build,
+                    "architecture": backup.system_info.architecture,
+                    "scan_timestamp": backup.system_info.scan_timestamp.isoformat()
+                }
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting backup details: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/backup/{backup_id}/validate")
+async def validate_backup(backup_id: str):
+    """Validate the integrity of a backup"""
+    try:
+        is_valid = remediation_manager.validate_backup(backup_id)
+        
+        return {
+            "success": True,
+            "message": "Backup validation completed",
+            "data": {
+                "backup_id": backup_id,
+                "is_valid": is_valid,
+                "validated_at": datetime.now().isoformat()
+            }
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"Error validating backup: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/backup/{backup_id}")
+async def delete_backup(backup_id: str):
+    """Delete a system backup"""
+    try:
+        result = remediation_manager.delete_backup(backup_id)
+        
+        return {
+            "success": True,
+            "message": "Backup deleted successfully",
+            "data": {
+                "backup_id": backup_id,
+                "deleted": result,
+                "deleted_at": datetime.now().isoformat()
+            }
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"Error deleting backup: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# =============================================
+# ROLLBACK ENDPOINTS
+# =============================================
+
+@app.post("/rollback/plan/create")
+async def create_rollback_plan(request: CreateRollbackPlanRequest):
+    """Create a rollback plan from a backup"""
+    try:
+        rollback_plan = remediation_manager.create_rollback_plan(
+            name=request.name,
+            description=request.description,
+            backup_id=request.backup_id,
+            selective_rollback=request.selective_rollback,
+            selected_policies=request.selected_policies
+        )
+        
+        return {
+            "success": True,
+            "message": "Rollback plan created successfully",
+            "data": {
+                "rollback_id": rollback_plan.id,
+                "name": rollback_plan.name,
+                "description": rollback_plan.description,
+                "backup_id": rollback_plan.backup_id,
+                "selective_rollback": rollback_plan.selective_rollback,
+                "selected_policies": rollback_plan.selected_policies,
+                "requires_reboot": rollback_plan.requires_reboot,
+                "estimated_duration": rollback_plan.estimated_duration,
+                "created_at": rollback_plan.created_at.isoformat()
+            }
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"Error creating rollback plan: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/rollback/plans")
+async def list_rollback_plans():
+    """Get all rollback plans"""
+    try:
+        plans = remediation_manager.list_rollback_plans()
+        
+        plans_data = []
+        for plan in plans:
+            plans_data.append({
+                "id": plan.id,
+                "name": plan.name,
+                "description": plan.description,
+                "backup_id": plan.backup_id,
+                "selective_rollback": plan.selective_rollback,
+                "policies_count": len(plan.selected_policies) if plan.selected_policies else 0,
+                "requires_reboot": plan.requires_reboot,
+                "estimated_duration": plan.estimated_duration,
+                "created_at": plan.created_at.isoformat()
+            })
+        
+        return {
+            "success": True,
+            "message": f"Retrieved {len(plans)} rollback plans",
+            "data": {
+                "plans": plans_data,
+                "total_count": len(plans)
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error listing rollback plans: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/rollback/plan/{rollback_id}")
+async def get_rollback_plan_details(rollback_id: str):
+    """Get detailed information about a rollback plan"""
+    try:
+        plan = remediation_manager.get_rollback_plan(rollback_id)
+        if not plan:
+            raise HTTPException(status_code=404, detail="Rollback plan not found")
+        
+        return {
+            "success": True,
+            "message": "Rollback plan details retrieved successfully",
+            "data": {
+                "id": plan.id,
+                "name": plan.name,
+                "description": plan.description,
+                "backup_id": plan.backup_id,
+                "selective_rollback": plan.selective_rollback,
+                "selected_policies": plan.selected_policies,
+                "requires_reboot": plan.requires_reboot,
+                "estimated_duration": plan.estimated_duration,
+                "compatibility_checked": plan.compatibility_checked,
+                "compatibility_issues": plan.compatibility_issues,
+                "created_at": plan.created_at.isoformat()
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting rollback plan: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/rollback/plan/{rollback_id}/execute")
+async def execute_rollback_plan(rollback_id: str, request: ExecuteRollbackRequest):
+    """Execute a rollback plan"""
+    try:
+        if request.rollback_id != rollback_id:
+            raise HTTPException(status_code=400, detail="Rollback ID mismatch")
+        
+        result = remediation_manager.execute_rollback_plan(
+            rollback_id=rollback_id,
+            operator=request.operator,
+            force_execution=request.force_execution
+        )
+        
+        return {
+            "success": True,
+            "message": "Rollback execution completed successfully",
+            "data": {
+                "rollback_id": rollback_id,
+                "operator": request.operator,
+                "executed_at": datetime.now().isoformat(),
+                "result": result,
+                "requires_reboot": result.get("requires_reboot", False)
+            }
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"Error executing rollback plan: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# =============================================
+# REMEDIATION STATISTICS & REPORTING
+# =============================================
+
+@app.get("/remediation/statistics")
+async def get_remediation_statistics():
+    """Get comprehensive remediation statistics"""
+    try:
+        stats = remediation_manager.get_comprehensive_statistics()
+        
+        return {
+            "success": True,
+            "message": "Remediation statistics retrieved successfully",
+            "data": stats
+        }
+        
+    except Exception as e:
+        print(f"Error getting remediation statistics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/remediation/health")
+async def get_remediation_health():
+    """Get remediation system health status"""
+    try:
+        health = remediation_manager.get_system_health()
+        
+        return {
+            "success": True,
+            "message": "Remediation system health retrieved successfully",
+            "data": health
+        }
+        
+    except Exception as e:
+        print(f"Error getting system health: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/remediation/export")
+async def export_remediation_data(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    format: str = "json"
+):
+    """Export remediation data for reporting"""
+    try:
+        start_dt = datetime.fromisoformat(start_date) if start_date else None
+        end_dt = datetime.fromisoformat(end_date) if end_date else None
+        
+        export_file = remediation_manager.export_remediation_data(
+            start_date=start_dt,
+            end_date=end_dt,
+            format=format
+        )
+        
+        return {
+            "success": True,
+            "message": "Remediation data exported successfully",
+            "data": {
+                "export_file": export_file,
+                "format": format,
+                "start_date": start_date,
+                "end_date": end_date,
+                "download_url": f"/remediation/export/download/{os.path.basename(export_file)}"
+            }
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"Error exporting remediation data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/remediation/export/download/{filename}")
+async def download_remediation_export(filename: str):
+    """Download exported remediation data"""
+    try:
+        export_path = os.path.join(remediation_manager.data_dir, filename)
+        
+        if not os.path.exists(export_path):
+            raise HTTPException(status_code=404, detail="Export file not found")
+        
+        return FileResponse(
+            path=export_path,
+            filename=filename,
+            media_type="application/json"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error downloading remediation export: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/remediation/maintenance")
+async def run_remediation_maintenance():
+    """Run maintenance tasks for the remediation system"""
+    try:
+        results = remediation_manager.run_maintenance()
+        
+        return {
+            "success": True,
+            "message": "Remediation maintenance completed successfully",
+            "data": {
+                "maintenance_results": results,
+                "completed_at": datetime.now().isoformat()
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error running maintenance: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

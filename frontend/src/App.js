@@ -60,7 +60,12 @@ import {
   Add as AddIcon,
   Delete as DeleteIcon,
   Check as CheckIcon,
-  ContentCopy as CopyIcon
+  ContentCopy as CopyIcon,
+  Dashboard as DashboardIcon,
+  CloudUpload as DeploymentIcon,
+  Assessment as AuditIcon,
+  Build as RemediationIcon,
+  Assignment as TemplateIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 import { saveAs } from 'file-saver';
@@ -914,15 +919,33 @@ function App() {
               </ListItem>
               <ListItem button onClick={() => setCurrentTab(3)}>
                 <ListItemIcon>
-                  <SettingsIcon />
+                  <TemplateIcon />
                 </ListItemIcon>
                 <ListItemText primary="Template Manager" />
               </ListItem>
               <ListItem button onClick={() => setCurrentTab(4)}>
                 <ListItemIcon>
-                  <SettingsIcon />
+                  <DashboardIcon />
                 </ListItemIcon>
                 <ListItemText primary="Policy Dashboard" />
+              </ListItem>
+              <ListItem button onClick={() => setCurrentTab(5)}>
+                <ListItemIcon>
+                  <DeploymentIcon />
+                </ListItemIcon>
+                <ListItemText primary="Deployment Manager" />
+              </ListItem>
+              <ListItem button onClick={() => setCurrentTab(6)}>
+                <ListItemIcon>
+                  <AuditIcon />
+                </ListItemIcon>
+                <ListItemText primary="Audit Manager" />
+              </ListItem>
+              <ListItem button onClick={() => setCurrentTab(7)}>
+                <ListItemIcon>
+                  <RemediationIcon />
+                </ListItemIcon>
+                <ListItemText primary="Remediation Manager" />
               </ListItem>
             </List>
             <Divider />
@@ -950,13 +973,26 @@ function App() {
         </Drawer>
 
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-          <Tabs value={currentTab} onChange={handleTabChange} centered>
+          <Tabs 
+            value={currentTab} 
+            onChange={handleTabChange} 
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
+            sx={{
+              '& .MuiTabs-scrollButtons': {
+                '&.Mui-disabled': { opacity: 0.3 }
+              }
+            }}
+          >
             <Tab label="Upload Benchmark" />
             <Tab label="View Policies" disabled={policies.length === 0 && completedTasks.length === 0} />
             <Tab label="Previous Extractions" />
             <Tab label="Template Manager" />
             <Tab label="Policy Dashboard" />
             <Tab label="Deployment Manager" />
+            <Tab label="Audit Manager" />
+            <Tab label="Remediation Manager" />
           </Tabs>
 
           {/* Upload Tab */}
@@ -1639,6 +1675,212 @@ function App() {
           {currentTab === 5 && (
             <Paper sx={{ p: 3, mt: 3 }}>
               <DeploymentManager />
+            </Paper>
+          )}
+
+          {/* Audit Manager Tab */}
+          {currentTab === 6 && (
+            <Paper sx={{ p: 3, mt: 3 }}>
+              <Typography variant="h5" gutterBottom>
+                System Audit Manager
+              </Typography>
+              <Typography variant="body1" color="text.secondary" paragraph>
+                Step 6: Perform comprehensive CIS compliance audits on target Windows systems.
+              </Typography>
+              
+              <Alert severity="info" sx={{ mb: 3 }}>
+                <Typography variant="body2">
+                  <strong>Audit Manager Features:</strong>
+                  <br />• Create and run CIS compliance audit configurations
+                  <br />• Generate detailed compliance reports (HTML, PDF, CSV, Excel)
+                  <br />• Track audit history and compliance trends
+                  <br />• Export audit results for analysis
+                  <br />• System information collection and analysis
+                </Typography>
+              </Alert>
+
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>
+                        Create New Audit
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" paragraph>
+                        Configure and execute a new CIS compliance audit
+                      </Typography>
+                      <Button variant="contained" startIcon={<SearchIcon />} fullWidth>
+                        Create Audit Configuration
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>
+                        Audit History
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" paragraph>
+                        View previous audit results and reports
+                      </Typography>
+                      <Button variant="outlined" startIcon={<HistoryIcon />} fullWidth>
+                        View Audit History
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>
+                        Generate Reports
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" paragraph>
+                        Export audit results in various formats
+                      </Typography>
+                      <Button variant="outlined" startIcon={<DownloadIcon />} fullWidth>
+                        Generate Report
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>
+                        System Information
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" paragraph>
+                        View current system configuration details
+                      </Typography>
+                      <Button variant="outlined" startIcon={<InfoIcon />} fullWidth>
+                        Get System Info
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+
+              <Alert severity="warning" sx={{ mt: 3 }}>
+                <Typography variant="body2">
+                  <strong>Note:</strong> Audit functionality requires appropriate permissions on the target system and may need to be run as administrator.
+                </Typography>
+              </Alert>
+            </Paper>
+          )}
+
+          {/* Remediation Manager Tab */}
+          {currentTab === 7 && (
+            <Paper sx={{ p: 3, mt: 3 }}>
+              <Typography variant="h5" gutterBottom>
+                Automated Remediation & Rollback Manager
+              </Typography>
+              <Typography variant="body1" color="text.secondary" paragraph>
+                Step 7: Automatically fix compliance issues and safely rollback changes when needed.
+              </Typography>
+              
+              <Alert severity="success" sx={{ mb: 3 }}>
+                <Typography variant="body2">
+                  <strong>Remediation System Features:</strong>
+                  <br />• Automated policy remediation with risk assessment
+                  <br />• Comprehensive system backups before changes
+                  <br />• Safe rollback to previous configuration states
+                  <br />• Real-time remediation progress monitoring
+                  <br />• Detailed remediation logs and reporting
+                </Typography>
+              </Alert>
+
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={4}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom color="primary">
+                        Create Remediation Plan
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" paragraph>
+                        Generate automated fix plan from audit results
+                      </Typography>
+                      <Button variant="contained" startIcon={<AddIcon />} fullWidth>
+                        Create Plan
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                
+                <Grid item xs={12} md={4}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom color="secondary">
+                        System Backups
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" paragraph>
+                        Create and manage system configuration backups
+                      </Typography>
+                      <Button variant="contained" color="secondary" startIcon={<CopyIcon />} fullWidth>
+                        Manage Backups
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                <Grid item xs={12} md={4}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom color="warning">
+                        Rollback Plans
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" paragraph>
+                        Safely restore previous system configurations
+                      </Typography>
+                      <Button variant="contained" color="warning" startIcon={<HistoryIcon />} fullWidth>
+                        Create Rollback
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>
+                        Active Remediation Sessions
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" paragraph>
+                        Monitor ongoing remediation executions
+                      </Typography>
+                      <Button variant="outlined" startIcon={<CircularProgress size={20} />} fullWidth>
+                        View Active Sessions
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>
+                        Remediation Statistics
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" paragraph>
+                        View comprehensive remediation metrics
+                      </Typography>
+                      <Button variant="outlined" startIcon={<InfoIcon />} fullWidth>
+                        View Statistics
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+
+              <Alert severity="error" sx={{ mt: 3 }}>
+                <Typography variant="body2">
+                  <strong>⚠️ Critical:</strong> Remediation actions modify system configurations and require administrator privileges. Always create backups before remediation and verify rollback capabilities.
+                </Typography>
+              </Alert>
             </Paper>
           )}
 

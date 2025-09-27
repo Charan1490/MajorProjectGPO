@@ -47,8 +47,9 @@ class DeploymentManager:
         self.active_jobs: Dict[str, DeploymentJob] = {}
         self.packages: Dict[str, DeploymentPackage] = {}
         
-        # Load existing packages
+        # Load existing packages and jobs
         self._load_packages()
+        self._load_jobs()
     
     def _load_packages(self):
         """Load existing deployment packages from storage"""
@@ -79,6 +80,71 @@ class DeploymentManager:
         except Exception as e:
             logger.error(f"Error saving deployment packages: {e}")
     
+    def _load_jobs(self):
+        """Load active deployment jobs from storage"""
+        try:
+            jobs_file = self.storage_path / "deployment_jobs.json"
+            if jobs_file.exists():
+                with open(jobs_file, 'r') as f:
+                    data = json.load(f)
+                    for job_data in data.get('jobs', []):
+                        try:
+                            job = self._deserialize_job(job_data)
+                            # Only load jobs that are still processing
+                            if job.status in [DeploymentStatus.PROCESSING, DeploymentStatus.PENDING]:
+                                self.active_jobs[job.job_id] = job
+                        except Exception as e:
+                            logger.error(f"Error loading job: {e}")
+        except Exception as e:
+            logger.error(f"Error loading deployment jobs: {e}")
+    
+    def _save_jobs(self):
+        """Save active deployment jobs to storage"""
+        try:
+            jobs_file = self.storage_path / "deployment_jobs.json"
+            data = {
+                'jobs': [self._serialize_job(job) for job in self.active_jobs.values()],
+                'last_updated': datetime.now().isoformat()
+            }
+            with open(jobs_file, 'w') as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            logger.error(f"Error saving deployment jobs: {e}")
+    
+    def _serialize_job(self, job: DeploymentJob) -> Dict[str, Any]:
+        """Serialize deployment job for storage"""
+        return {
+            "job_id": job.job_id,
+            "package_id": job.package_id,
+            "status": job.status.value,
+            "progress": job.progress,
+            "current_step": job.current_step,
+            "total_steps": job.total_steps,
+            "completed_steps": job.completed_steps,
+            "start_time": job.start_time.isoformat(),
+            "end_time": job.end_time.isoformat() if job.end_time else None,
+            "estimated_completion": job.estimated_completion.isoformat() if job.estimated_completion else None,
+            "error_message": job.error_message,
+            "log_messages": job.log_messages
+        }
+    
+    def _deserialize_job(self, data: Dict[str, Any]) -> DeploymentJob:
+        """Deserialize deployment job from storage"""
+        return DeploymentJob(
+            job_id=data["job_id"],
+            package_id=data["package_id"],
+            status=DeploymentStatus(data["status"]),
+            progress=data["progress"],
+            current_step=data["current_step"],
+            total_steps=data["total_steps"],
+            completed_steps=data["completed_steps"],
+            start_time=datetime.fromisoformat(data["start_time"]),
+            end_time=datetime.fromisoformat(data["end_time"]) if data["end_time"] else None,
+            estimated_completion=datetime.fromisoformat(data["estimated_completion"]) if data["estimated_completion"] else None,
+            error_message=data["error_message"],
+            log_messages=data["log_messages"]
+        )
+    
     def _serialize_package(self, package: DeploymentPackage) -> Dict[str, Any]:
         """Serialize deployment package for storage"""
         return {
@@ -107,7 +173,7 @@ class DeploymentManager:
             "integrity_verified": package.integrity_verified,
             "source_groups": package.source_groups,
             "source_tags": package.source_tags,
-            "source_policies": package.source_policies
+            "source_policies": package.source_policies if hasattr(package, 'source_policies') else []
         }
     
     def _deserialize_package(self, data: Dict[str, Any]) -> DeploymentPackage:
@@ -201,6 +267,7 @@ class DeploymentManager:
         )
         
         self.active_jobs[job_id] = job
+        self._save_jobs()
         
         try:
             # Process package creation
@@ -208,6 +275,7 @@ class DeploymentManager:
         except Exception as e:
             job.status = DeploymentStatus.FAILED
             job.error_message = str(e)
+            self._save_jobs()
             logger.error(f"Package creation failed: {e}")
         
         return job_id
@@ -225,6 +293,7 @@ class DeploymentManager:
             self._validate_input_policies(package)
             job.completed_steps = 1
             job.log_messages.append("Policy validation completed")
+            self._save_jobs()
             
             # Step 2: Convert policies to LGPO format
             job.current_step = "Converting to LGPO format"
@@ -248,6 +317,7 @@ class DeploymentManager:
             package.scripts = scripts
             job.completed_steps = 4
             job.log_messages.append(f"Generated {len(scripts)} deployment scripts")
+            self._save_jobs()
             
             # Step 5: Create package manifest
             job.current_step = "Creating package manifest"
@@ -282,15 +352,24 @@ class DeploymentManager:
             job.completed_steps = 8
             job.status = DeploymentStatus.COMPLETED
             job.log_messages.append("Package creation completed")
+            job.end_time = datetime.now()
+            
+            # Remove completed job from active jobs after a delay
+            self._schedule_job_cleanup(job_id)
             
         except Exception as e:
             job.status = DeploymentStatus.FAILED
             job.error_message = str(e)
             package.status = DeploymentStatus.FAILED
+            job.end_time = datetime.now()
             logger.error(f"Package creation failed at step '{job.current_step}': {e}")
+            
+            # Remove failed job from active jobs after a delay  
+            self._schedule_job_cleanup(job_id)
         
         finally:
             self._save_packages()
+            self._save_jobs()
     
     def _validate_input_policies(self, package: DeploymentPackage):
         """Validate input policies for deployment"""
@@ -1494,3 +1573,40 @@ Refer to the tool documentation for additional support.
             "total_policies_packaged": total_policies,
             "active_jobs": len(self.active_jobs)
         }
+    
+    def _schedule_job_cleanup(self, job_id: str, delay_minutes: int = 5):
+        """Schedule cleanup of completed/failed jobs after a delay"""
+        import threading
+        import time
+        
+        def cleanup_job():
+            time.sleep(delay_minutes * 60)  # Wait for delay
+            if job_id in self.active_jobs:
+                job = self.active_jobs[job_id]
+                if job.status in [DeploymentStatus.COMPLETED, DeploymentStatus.FAILED]:
+                    del self.active_jobs[job_id]
+                    self._save_jobs()
+                    logger.info(f"Cleaned up job {job_id}")
+        
+        # Start cleanup in background thread
+        cleanup_thread = threading.Thread(target=cleanup_job, daemon=True)
+        cleanup_thread.start()
+    
+    def cleanup_old_jobs(self, max_age_hours: int = 24):
+        """Manually clean up old completed/failed jobs"""
+        cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
+        jobs_to_remove = []
+        
+        for job_id, job in self.active_jobs.items():
+            if (job.status in [DeploymentStatus.COMPLETED, DeploymentStatus.FAILED] and 
+                job.end_time and job.end_time < cutoff_time):
+                jobs_to_remove.append(job_id)
+        
+        for job_id in jobs_to_remove:
+            del self.active_jobs[job_id]
+        
+        if jobs_to_remove:
+            self._save_jobs()
+            logger.info(f"Cleaned up {len(jobs_to_remove)} old jobs")
+        
+        return len(jobs_to_remove)
