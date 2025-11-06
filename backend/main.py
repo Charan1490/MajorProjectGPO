@@ -223,8 +223,9 @@ template_manager = TemplateManager()
 # Initialize Dashboard Manager (Step 3)
 dashboard_manager = DashboardManager()
 
-# Initialize Deployment Manager (Step 4)
-deployment_manager = DeploymentManager()
+# Initialize Deployment Manager (Step 4) with enhanced capabilities
+gemini_api_key = os.getenv('GEMINI_API_KEY')
+deployment_manager = DeploymentManager(gemini_api_key=gemini_api_key)
 
 # Initialize LGPO Manager (Step 4)
 lgpo_manager = LGPOManager()

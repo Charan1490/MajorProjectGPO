@@ -27,11 +27,20 @@ from .models_deployment import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Import enhanced deployment tools
+try:
+    from .enhanced_powershell_generator import EnhancedPowerShellGenerator
+    from .policy_path_researcher import PolicyPathResearcher
+    HAS_ENHANCED_TOOLS = True
+except ImportError as e:
+    logger.warning(f"Enhanced deployment tools not available: {e}")
+    HAS_ENHANCED_TOOLS = False
+
 
 class DeploymentManager:
     """Manages offline GPO deployment package creation and validation"""
     
-    def __init__(self, storage_path: str = "data/deployments"):
+    def __init__(self, storage_path: str = "data/deployments", gemini_api_key: Optional[str] = None):
         """Initialize deployment manager"""
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)
@@ -46,6 +55,16 @@ class DeploymentManager:
         
         self.active_jobs: Dict[str, DeploymentJob] = {}
         self.packages: Dict[str, DeploymentPackage] = {}
+        
+        # Initialize enhanced deployment tools
+        if HAS_ENHANCED_TOOLS:
+            self.enhanced_ps_generator = EnhancedPowerShellGenerator(gemini_api_key)
+            self.policy_researcher = PolicyPathResearcher(gemini_api_key)
+            logger.info("Enhanced deployment tools initialized")
+        else:
+            self.enhanced_ps_generator = None
+            self.policy_researcher = None
+            logger.warning("Enhanced deployment tools not available")
         
         # Load existing packages and jobs
         self._load_packages()
@@ -656,16 +675,52 @@ class DeploymentManager:
     def _generate_powershell_files(self, lgpo_entries: List[LGPOEntry], target_os: WindowsVersion) -> List[PolicyFile]:
         """Generate PowerShell scripts for policy application"""
         
-        ps_content = self._create_powershell_content(lgpo_entries, target_os)
+        # Use enhanced PowerShell generator if available
+        if self.enhanced_ps_generator:
+            logger.info("Using enhanced PowerShell generator with policy research")
+            
+            # Convert LGPO entries to policy format for research
+            policies = []
+            for entry in lgpo_entries:
+                policy = {
+                    'id': entry.policy_id,
+                    'name': entry.policy_name,
+                    'description': entry.description,
+                    'category': entry.category_path,
+                    'setting': entry.setting,
+                    'registry_settings': [
+                        {
+                            'hive': reg.hive,
+                            'key_path': reg.key_path,
+                            'value_name': reg.value_name,
+                            'value_type': reg.value_type.value,
+                            'value_data': reg.value_data
+                        } for reg in entry.registry_entries
+                    ]
+                }
+                policies.append(policy)
+            
+            ps_content = self.enhanced_ps_generator.generate_deployment_script(
+                policies=policies,
+                target_os=target_os.value,
+                include_backup=True,
+                include_verification=True,
+                include_rollback=True
+            )
+        else:
+            # Fallback to basic generator
+            logger.warning("Using basic PowerShell generator (enhanced tools not available)")
+            ps_content = self._create_powershell_content(lgpo_entries, target_os)
+        
         checksum = hashlib.sha256(ps_content.encode()).hexdigest()
         
         ps_file = PolicyFile(
-            file_name="Apply-CISCompliance.ps1",
+            file_name="Deploy-CISCompliance.ps1",
             file_type="ps1",
             content=ps_content,
             checksum=checksum,
             size_bytes=len(ps_content.encode()),
-            description="PowerShell script to apply CIS compliance policies"
+            description="Enhanced PowerShell script to apply CIS compliance policies with verification and rollback"
         )
         
         return [ps_file]

@@ -11,7 +11,7 @@
     "gpo_path": null,
     "cis_level": "None",
     "policy_type": "registry",
-    "status": "enabled",
+    "status": "disabled",
     "custom_value": null,
     "required_value": "1 or more day(s)",
     "user_notes": null,
@@ -31,6 +31,14 @@
         "field_name": "status",
         "old_value": "disabled",
         "new_value": "enabled",
+        "user_note": null
+      },
+      {
+        "edit_id": "1684037a-4f51-441d-a67f-eaa5356b0e55",
+        "timestamp": "2025-10-06 11:24:46.319375",
+        "field_name": "status",
+        "old_value": "enabled",
+        "new_value": "disabled",
         "user_note": null
       }
     ],
