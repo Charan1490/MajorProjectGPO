@@ -14,7 +14,7 @@
     "secedit_section": "System Access",
     "secedit_setting": "MinimumPasswordAge",
     "powershell_command": null,
-    "verification_command": "$value = Get-ItemPropertyValue -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Netlogon\\Parameters' -Name 'MinimumPasswordAge' -ErrorAction SilentlyContinue; if ($value -ge 1) { Write-Log \"\u2713 Minimum password age verified\" -Level SUCCESS } else { Write-Log \"\u2717 Minimum password age verification failed\" -Level ERROR }",
+    "verification_command": "$value = Get-ItemPropertyValue -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Netlogon\\Parameters' -Name 'MinimumPasswordAge' -ErrorAction SilentlyContinue; if ($value -ge 1) { Write-Log \"✓ Minimum password age verified\" -Level SUCCESS } else { Write-Log \"✗ Minimum password age verification failed\" -Level ERROR }",
     "remediation_notes": "Affects password policy domain-wide if system is domain controller",
     "requires_reboot": false,
     "risk_level": "Low"
@@ -34,7 +34,7 @@
     "secedit_section": "System Access",
     "secedit_setting": "MaximumPasswordAge",
     "powershell_command": null,
-    "verification_command": "$value = Get-ItemPropertyValue -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Netlogon\\Parameters' -Name 'MaximumPasswordAge' -ErrorAction SilentlyContinue; if ($value -le 365 -and $value -gt 0) { Write-Log \"\u2713 Maximum password age verified\" -Level SUCCESS } else { Write-Log \"\u2717 Maximum password age verification failed\" -Level ERROR }",
+    "verification_command": "$value = Get-ItemPropertyValue -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Netlogon\\Parameters' -Name 'MaximumPasswordAge' -ErrorAction SilentlyContinue; if ($value -le 365 -and $value -gt 0) { Write-Log \"✓ Maximum password age verified\" -Level SUCCESS } else { Write-Log \"✗ Maximum password age verification failed\" -Level ERROR }",
     "remediation_notes": "Setting to 0 means passwords never expire - not recommended",
     "requires_reboot": false,
     "risk_level": "Medium"
@@ -54,7 +54,7 @@
     "secedit_section": "Privilege Rights",
     "secedit_setting": "SeTrustedCredManAccessPrivilege",
     "powershell_command": null,
-    "verification_command": "$value = Get-ItemPropertyValue -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -Name 'SeTrustedCredManAccessPrivilege' -ErrorAction SilentlyContinue; if ([string]::IsNullOrEmpty($value)) { Write-Log \"\u2713 Access Credential Manager privilege properly restricted\" -Level SUCCESS } else { Write-Log \"\u2717 Access Credential Manager privilege verification failed\" -Level ERROR }",
+    "verification_command": "$value = Get-ItemPropertyValue -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -Name 'SeTrustedCredManAccessPrivilege' -ErrorAction SilentlyContinue; if ([string]::IsNullOrEmpty($value)) { Write-Log \"✓ Access Credential Manager privilege properly restricted\" -Level SUCCESS } else { Write-Log \"✗ Access Credential Manager privilege verification failed\" -Level ERROR }",
     "remediation_notes": "Removes the ability for applications to access stored credentials",
     "requires_reboot": false,
     "risk_level": "High"
@@ -72,7 +72,7 @@
     "gpo_path": "Computer Configuration\\Policies\\Windows Settings\\Security Settings\\Local Policies\\Security Options",
     "gpo_setting": "Accounts: Block Microsoft accounts",
     "powershell_command": null,
-    "verification_command": "$value = Get-ItemPropertyValue -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -Name 'NoConnectedUser' -ErrorAction SilentlyContinue; if ($value -eq 3) { Write-Log \"\u2713 Microsoft accounts properly blocked\" -Level SUCCESS } else { Write-Log \"\u2717 Microsoft accounts blocking verification failed\" -Level ERROR }",
+    "verification_command": "$value = Get-ItemPropertyValue -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -Name 'NoConnectedUser' -ErrorAction SilentlyContinue; if ($value -eq 3) { Write-Log \"✓ Microsoft accounts properly blocked\" -Level SUCCESS } else { Write-Log \"✗ Microsoft accounts blocking verification failed\" -Level ERROR }",
     "remediation_notes": "Prevents users from adding Microsoft accounts for authentication",
     "requires_reboot": false,
     "risk_level": "Medium"
@@ -92,7 +92,7 @@
     "secedit_section": "System Access",
     "secedit_setting": "EnableGuestAccount",
     "powershell_command": null,
-    "verification_command": "$value = Get-ItemPropertyValue -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon' -Name 'GuestAccountStatus' -ErrorAction SilentlyContinue; if ($value -eq 0) { Write-Log \"\u2713 Guest account properly disabled\" -Level SUCCESS } else { Write-Log \"\u2717 Guest account status verification failed\" -Level ERROR }",
+    "verification_command": "$value = Get-ItemPropertyValue -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon' -Name 'GuestAccountStatus' -ErrorAction SilentlyContinue; if ($value -eq 0) { Write-Log \"✓ Guest account properly disabled\" -Level SUCCESS } else { Write-Log \"✗ Guest account status verification failed\" -Level ERROR }",
     "remediation_notes": "Disables the built-in Guest account for security",
     "requires_reboot": false,
     "risk_level": "High"
@@ -110,7 +110,7 @@
     "gpo_path": "Computer Configuration\\Policies\\Windows Settings\\Security Settings\\Local Policies\\Security Options",
     "gpo_setting": "Interactive logon: Do not require CTRL+ALT+DEL",
     "powershell_command": null,
-    "verification_command": "$value = Get-ItemPropertyValue -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -Name 'DisableCAD' -ErrorAction SilentlyContinue; if ($value -eq 0) { Write-Log \"\u2713 CTRL+ALT+DEL requirement verified\" -Level SUCCESS } else { Write-Log \"\u2717 CTRL+ALT+DEL requirement verification failed\" -Level ERROR }",
+    "verification_command": "$value = Get-ItemPropertyValue -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -Name 'DisableCAD' -ErrorAction SilentlyContinue; if ($value -eq 0) { Write-Log \"✓ CTRL+ALT+DEL requirement verified\" -Level SUCCESS } else { Write-Log \"✗ CTRL+ALT+DEL requirement verification failed\" -Level ERROR }",
     "remediation_notes": "Requires CTRL+ALT+DEL for interactive logon security",
     "requires_reboot": false,
     "risk_level": "Medium"
@@ -128,7 +128,7 @@
     "gpo_path": "Computer Configuration\\Administrative Templates\\Control Panel\\Personalization",
     "gpo_setting": "Prevent enabling lock screen camera",
     "powershell_command": null,
-    "verification_command": "$value = Get-ItemPropertyValue -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\Personalization' -Name 'NoLockScreenCamera' -ErrorAction SilentlyContinue; if ($value -eq 1) { Write-Log \"\u2713 Lock screen camera prevention verified\" -Level SUCCESS } else { Write-Log \"\u2717 Lock screen camera prevention verification failed\" -Level ERROR }",
+    "verification_command": "$value = Get-ItemPropertyValue -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\Personalization' -Name 'NoLockScreenCamera' -ErrorAction SilentlyContinue; if ($value -eq 1) { Write-Log \"✓ Lock screen camera prevention verified\" -Level SUCCESS } else { Write-Log \"✗ Lock screen camera prevention verification failed\" -Level ERROR }",
     "remediation_notes": "Prevents camera access from lock screen for privacy",
     "requires_reboot": false,
     "risk_level": "Medium"
@@ -146,7 +146,7 @@
     "gpo_path": "Computer Configuration\\Administrative Templates\\Windows Components\\Microsoft account",
     "gpo_setting": "Block all consumer Microsoft account user authentication",
     "powershell_command": null,
-    "verification_command": "$value = Get-ItemPropertyValue -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\MicrosoftAccount' -Name 'DisableUserAuth' -ErrorAction SilentlyContinue; if ($value -eq 1) { Write-Log \"\u2713 Microsoft account authentication blocking verified\" -Level SUCCESS } else { Write-Log \"\u2717 Microsoft account authentication blocking verification failed\" -Level ERROR }",
+    "verification_command": "$value = Get-ItemPropertyValue -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\MicrosoftAccount' -Name 'DisableUserAuth' -ErrorAction SilentlyContinue; if ($value -eq 1) { Write-Log \"✓ Microsoft account authentication blocking verified\" -Level SUCCESS } else { Write-Log \"✗ Microsoft account authentication blocking verification failed\" -Level ERROR }",
     "remediation_notes": "Blocks consumer Microsoft account authentication in enterprise environments",
     "requires_reboot": false,
     "risk_level": "Medium"

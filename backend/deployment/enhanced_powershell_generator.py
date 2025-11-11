@@ -215,10 +215,10 @@ function Set-RegistryValue {
         [string]$PolicyName = "Unknown Policy"
     )
     
-    # Ensure provider-qualified path (HKLM:\\)
-    # ensure we match e.g. "HKLM:\\" or "HKEY_LOCAL_MACHINE:\\"
-    if ($RegistryPath -notmatch '^[A-Za-z]{2,4}:\\\\') {
-        $RegistryPath = $RegistryPath -replace '^([A-Za-z]{2,4})\\\\', '$1:\\\\'
+    # Ensure provider-qualified path (examples: HKLM:\\ or HKEY_LOCAL_MACHINE:\\)
+    if ($RegistryPath -notmatch '^[A-Za-z0-9_]+:\\\\') {
+        # convert e.g. "HKLM\\SOFTWARE\\..." or "HKEY_LOCAL_MACHINE\\SOFTWARE\\..." -> "HKLM:\\SOFTWARE\\..."
+        $RegistryPath = $RegistryPath -replace '^([A-Za-z0-9_]+)\\\\', '$1:\\\\'
     }
     
     try {
@@ -242,8 +242,12 @@ function Set-RegistryValue {
         
         # Apply the setting using create-or-update pattern
         if ($PSCmdlet.ShouldProcess("$RegistryPath\\$ValueName", "Set Registry Value to $ValueData")) {
-            # Check if value exists
-            $valueExists = Get-ItemProperty -Path $RegistryPath -Name $ValueName -ErrorAction SilentlyContinue
+            # Check if value exists (explicit property presence test)
+            $valueObj = Get-ItemProperty -Path $RegistryPath -ErrorAction SilentlyContinue
+            $valueExists = $false
+            if ($null -ne $valueObj) {
+                $valueExists = $valueObj.PSObject.Properties.Name -contains $ValueName
+            }
             
             if ($valueExists) {
                 # Value exists - update it (no -Type parameter)
@@ -347,15 +351,13 @@ function Invoke-SecurityPolicy {
         $secEditDb = "$env:TEMP\\CIS-SecEdit-$randomId.sdb"
         
         # Create security template with proper ordering
-        $secTemplate = @"
+        $secTemplate = @'
 [Unicode]
 Unicode=yes
 [Version]
-signature="`$CHICAGO`$"
+signature="$CHICAGO$"
 Revision=1
-[$Section]
-$Setting = $Value
-"@
+'@ + "`n[$Section]`n$Setting = $Value`n"
         
         if ($PSCmdlet.ShouldProcess($PolicyName, "Apply Security Policy")) {
             $secTemplate | Out-File -FilePath $secEditFile -Encoding Unicode
@@ -480,12 +482,14 @@ function New-SystemBackup {
             
             $backupSuccess = $true
             foreach ($key in $keysToBackup) {
-                $keyFile = $registryBackup -replace '\\.reg$', "-$($key -replace '\\\\|:','_').reg"
+                $safeKeyName = ($key -replace '\\\\|:','_')
+                $keyFile = $registryBackup -replace '\\.reg$', "-$safeKeyName.reg"
                 $result = & reg.exe export $key $keyFile /y 2>&1
                 if ($LASTEXITCODE -eq 0) {
                     Write-Log "✓ Backed up: $key" -Level INFO -NoConsole
                 } else {
-                    Write-Log "⚠ Could not backup: $key (may not exist yet)" -Level WARNING -NoConsole
+                    Write-Log "⚠ Could not backup: $key (may not exist yet or permission issue). reg.exe output: $result" -Level WARNING -NoConsole
+                    $backupSuccess = $false
                 }
             }
             
@@ -705,17 +709,55 @@ if (-not (New-SystemBackup)) {
             policy_path = result.policy_path
             
             if policy_path.verification_command:
-                lines.extend([
-                    f"    # Verify: {policy_path.policy_name}",
-                    f"    try {{",
-                    f"        {policy_path.verification_command}",
-                    f"        $script:VerificationPassed++",
-                    f"    }} catch {{",
-                    f"        Write-Log \"Verification failed for {policy_path.policy_name}: $_\" -Level WARNING",
-                    f"        $script:VerificationFailed++",
-                    f"    }}",
-                    ""
-                ])
+                # Extract the verification logic to properly increment counters
+                # Parse the command to add proper pass/fail counter increments
+                verification_cmd = policy_path.verification_command
+                
+                # If the command has Write-Log calls, we need to restructure it
+                if 'Write-Log' in verification_cmd:
+                    # Split on semicolon to get the value retrieval and the if statement
+                    parts = verification_cmd.split(';', 1)
+                    if len(parts) == 2:
+                        value_retrieval = parts[0].strip()
+                        condition_check = parts[1].strip()
+                        
+                        # Extract condition from "if (condition) { ... } else { ... }"
+                        lines.extend([
+                            f"    # Verify: {policy_path.policy_name}",
+                            f"    try {{",
+                            f"        {value_retrieval}",
+                            f"        {condition_check.replace('{ Write-Log', '{ Write-Log').replace(' -Level SUCCESS }', ' -Level SUCCESS; $script:VerificationPassed++; }').replace(' -Level ERROR }', ' -Level ERROR; $script:VerificationFailed++; }')}",
+                            f"    }} catch {{",
+                            f"        Write-Log \"Verification failed for {policy_path.policy_name}: $_\" -Level WARNING",
+                            f"        $script:VerificationFailed++",
+                            f"    }}",
+                            ""
+                        ])
+                    else:
+                        # Fallback for simple commands
+                        lines.extend([
+                            f"    # Verify: {policy_path.policy_name}",
+                            f"    try {{",
+                            f"        {verification_cmd}",
+                            f"        $script:VerificationPassed++",
+                            f"    }} catch {{",
+                            f"        Write-Log \"Verification failed for {policy_path.policy_name}: $_\" -Level WARNING",
+                            f"        $script:VerificationFailed++",
+                            f"    }}",
+                            ""
+                        ])
+                else:
+                    lines.extend([
+                        f"    # Verify: {policy_path.policy_name}",
+                        f"    try {{",
+                        f"        {verification_cmd}",
+                        f"        $script:VerificationPassed++",
+                        f"    }} catch {{",
+                        f"        Write-Log \"Verification failed for {policy_path.policy_name}: $_\" -Level WARNING",
+                        f"        $script:VerificationFailed++",
+                        f"    }}",
+                        ""
+                    ])
             elif policy_path.registry_key and policy_path.registry_value_name:
                 lines.extend([
                     f"    # Verify: {policy_path.policy_name}",

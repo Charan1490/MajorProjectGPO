@@ -32,7 +32,7 @@
     .\Deploy-CISCompliance.ps1 -BackupPath "D:\Backups"
 
 .NOTES
-    Generated: 2025-11-11T12:29:29.600297
+    Generated: 2025-11-11T12:37:29.619406
     Target OS: Windows 11
     
     REQUIREMENTS:
@@ -147,10 +147,10 @@ function Set-RegistryValue {
         [string]$PolicyName = "Unknown Policy"
     )
     
-    # Ensure provider-qualified path (HKLM:\)
-    # ensure we match e.g. "HKLM:\" or "HKEY_LOCAL_MACHINE:\"
-    if ($RegistryPath -notmatch '^[A-Za-z]{2,4}:\\') {
-        $RegistryPath = $RegistryPath -replace '^([A-Za-z]{2,4})\\', '$1:\\'
+    # Ensure provider-qualified path (examples: HKLM:\ or HKEY_LOCAL_MACHINE:\)
+    if ($RegistryPath -notmatch '^[A-Za-z0-9_]+:\\') {
+        # convert e.g. "HKLM\SOFTWARE\..." or "HKEY_LOCAL_MACHINE\SOFTWARE\..." -> "HKLM:\SOFTWARE\..."
+        $RegistryPath = $RegistryPath -replace '^([A-Za-z0-9_]+)\\', '$1:\\'
     }
     
     try {
@@ -174,8 +174,12 @@ function Set-RegistryValue {
         
         # Apply the setting using create-or-update pattern
         if ($PSCmdlet.ShouldProcess("$RegistryPath\$ValueName", "Set Registry Value to $ValueData")) {
-            # Check if value exists
-            $valueExists = Get-ItemProperty -Path $RegistryPath -Name $ValueName -ErrorAction SilentlyContinue
+            # Check if value exists (explicit property presence test)
+            $valueObj = Get-ItemProperty -Path $RegistryPath -ErrorAction SilentlyContinue
+            $valueExists = $false
+            if ($null -ne $valueObj) {
+                $valueExists = $valueObj.PSObject.Properties.Name -contains $ValueName
+            }
             
             if ($valueExists) {
                 # Value exists - update it (no -Type parameter)
@@ -279,15 +283,13 @@ function Invoke-SecurityPolicy {
         $secEditDb = "$env:TEMP\CIS-SecEdit-$randomId.sdb"
         
         # Create security template with proper ordering
-        $secTemplate = @"
+        $secTemplate = @'
 [Unicode]
 Unicode=yes
 [Version]
-signature="`$CHICAGO`$"
+signature="$CHICAGO$"
 Revision=1
-[$Section]
-$Setting = $Value
-"@
+'@ + "`n[$Section]`n$Setting = $Value`n"
         
         if ($PSCmdlet.ShouldProcess($PolicyName, "Apply Security Policy")) {
             $secTemplate | Out-File -FilePath $secEditFile -Encoding Unicode
@@ -408,12 +410,14 @@ function New-SystemBackup {
             
             $backupSuccess = $true
             foreach ($key in $keysToBackup) {
-                $keyFile = $registryBackup -replace '\.reg$', "-$($key -replace '\\|:','_').reg"
+                $safeKeyName = ($key -replace '\\|:','_')
+                $keyFile = $registryBackup -replace '\.reg$', "-$safeKeyName.reg"
                 $result = & reg.exe export $key $keyFile /y 2>&1
                 if ($LASTEXITCODE -eq 0) {
                     Write-Log "✓ Backed up: $key" -Level INFO -NoConsole
                 } else {
-                    Write-Log "⚠ Could not backup: $key (may not exist yet)" -Level WARNING -NoConsole
+                    Write-Log "⚠ Could not backup: $key (may not exist yet or permission issue). reg.exe output: $result" -Level WARNING -NoConsole
+                    $backupSuccess = $false
                 }
             }
             
@@ -628,8 +632,8 @@ if (-not $SkipVerification) {
 
     # Verify: Ensure 'Minimum password age' is set to '1 or more day(s)'
     try {
-        $value = Get-ItemPropertyValue -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\Netlogon\Parameters' -Name 'MinimumPasswordAge' -ErrorAction SilentlyContinue; if ($value -ge 1) { Write-Log "✓ Minimum password age verified" -Level SUCCESS } else { Write-Log "✗ Minimum password age verification failed" -Level ERROR }
-        $script:VerificationPassed++
+        $value = Get-ItemPropertyValue -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\Netlogon\Parameters' -Name 'MinimumPasswordAge' -ErrorAction SilentlyContinue
+        if ($value -ge 1) { Write-Log "✓ Minimum password age verified" -Level SUCCESS; $script:VerificationPassed++; } else { Write-Log "✗ Minimum password age verification failed" -Level ERROR; $script:VerificationFailed++; }
     } catch {
         Write-Log "Verification failed for Ensure 'Minimum password age' is set to '1 or more day(s)': $_" -Level WARNING
         $script:VerificationFailed++
@@ -637,8 +641,8 @@ if (-not $SkipVerification) {
 
     # Verify: Ensure 'Accounts: Block Microsoft accounts' is set to 'Users can't add or log on with Microsoft accounts'
     try {
-        $value = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'NoConnectedUser' -ErrorAction SilentlyContinue; if ($value -eq 3) { Write-Log "✓ Microsoft accounts properly blocked" -Level SUCCESS } else { Write-Log "✗ Microsoft accounts blocking verification failed" -Level ERROR }
-        $script:VerificationPassed++
+        $value = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'NoConnectedUser' -ErrorAction SilentlyContinue
+        if ($value -eq 3) { Write-Log "✓ Microsoft accounts properly blocked" -Level SUCCESS; $script:VerificationPassed++; } else { Write-Log "✗ Microsoft accounts blocking verification failed" -Level ERROR; $script:VerificationFailed++; }
     } catch {
         Write-Log "Verification failed for Ensure 'Accounts: Block Microsoft accounts' is set to 'Users can't add or log on with Microsoft accounts': $_" -Level WARNING
         $script:VerificationFailed++
@@ -646,8 +650,8 @@ if (-not $SkipVerification) {
 
     # Verify: Ensure 'Prevent enabling lock screen camera' is set to 'Enabled'
     try {
-        $value = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' -Name 'NoLockScreenCamera' -ErrorAction SilentlyContinue; if ($value -eq 1) { Write-Log "✓ Lock screen camera prevention verified" -Level SUCCESS } else { Write-Log "✗ Lock screen camera prevention verification failed" -Level ERROR }
-        $script:VerificationPassed++
+        $value = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' -Name 'NoLockScreenCamera' -ErrorAction SilentlyContinue
+        if ($value -eq 1) { Write-Log "✓ Lock screen camera prevention verified" -Level SUCCESS; $script:VerificationPassed++; } else { Write-Log "✗ Lock screen camera prevention verification failed" -Level ERROR; $script:VerificationFailed++; }
     } catch {
         Write-Log "Verification failed for Ensure 'Prevent enabling lock screen camera' is set to 'Enabled': $_" -Level WARNING
         $script:VerificationFailed++
