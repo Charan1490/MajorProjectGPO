@@ -266,7 +266,14 @@ function Set-RegistryValue {
                     $compareOK = ([int]$newValue -eq [int]$ValueData)
                 }
                 "ExpandString" { $compareOK = ($newValue -eq $ValueData) }
-                "MultiString"  { $compareOK = ($newValue -join ",") -eq ($ValueData -join ",") }
+                "MultiString" {
+                    # normalize both sides to arrays of strings for comparison
+                    $left = if ($newValue -is [System.Array]) { $newValue } elseif ($null -eq $newValue) { @() } else { @([string]$newValue) }
+                    $right = if ($ValueData -is [System.Array]) { $ValueData } elseif ($null -eq $ValueData) { @() } else { @([string]$ValueData) }
+
+                    # compare lengths and elements (order-sensitive)
+                    $compareOK = ($left.Length -eq $right.Length) -and (($left -join ",") -eq ($right -join ","))
+                }
                 default { $compareOK = ($newValue -eq $ValueData) }
             }
             
@@ -351,13 +358,15 @@ function Invoke-SecurityPolicy {
         $secEditDb = "$env:TEMP\\CIS-SecEdit-$randomId.sdb"
         
         # Create security template with proper ordering
+        # ensure value is quoted if it contains spaces or is not purely numeric
+        $infValue = if ($Value -match '^\d+$') { $Value } else { '"' + ($Value -replace '"','\"') + '"' }
         $secTemplate = @'
 [Unicode]
 Unicode=yes
 [Version]
 signature="$CHICAGO$"
 Revision=1
-'@ + "`n[$Section]`n$Setting = $Value`n"
+'@ + "`n[$Section]`n$Setting = $infValue`n"
         
         if ($PSCmdlet.ShouldProcess($PolicyName, "Apply Security Policy")) {
             $secTemplate | Out-File -FilePath $secEditFile -Encoding Unicode
@@ -496,7 +505,9 @@ function New-SystemBackup {
             }
             
             if (-not $backupSuccess) {
-                Write-Log "✗ One or more registry keys failed to backup. Review the individual backup messages above." -Level ERROR
+                Write-Log "✗ One or more registry key backups failed." -Level ERROR
+                # Decide: abort deployment or continue. To abort, uncomment next line:
+                # return $false
                 # Continue anyway as keys may not exist yet (will be created by script)
             } else {
                 Write-Log "✓ Registry backup completed" -Level SUCCESS
