@@ -208,11 +208,17 @@ function Set-RegistryValue {
         [object]$ValueData,
         
         [Parameter(Mandatory=$true)]
+        [ValidateSet("REG_DWORD","REG_SZ","REG_MULTI_SZ","REG_EXPAND_SZ","REG_BINARY")]
         [string]$ValueType,
         
         [Parameter(Mandatory=$false)]
         [string]$PolicyName = "Unknown Policy"
     )
+    
+    # Ensure provider-qualified path (HKLM:\\)
+    if ($RegistryPath -notmatch '^[A-Za-z]{2,4}:\\') {
+        $RegistryPath = $RegistryPath -replace '^([A-Za-z]{2,4})\\\\', '$1:\\\\'
+    }
     
     try {
         # Ensure registry path exists
@@ -223,20 +229,31 @@ function Set-RegistryValue {
             }
         }
         
-        # Get current value for backup/comparison
-        $currentValue = $null
-        try {
-            $currentValue = Get-ItemPropertyValue -Path $RegistryPath -Name $ValueName -ErrorAction SilentlyContinue
-        } catch {
-            Write-Log "Registry value $ValueName does not exist in $RegistryPath" -Level INFO
+        # Map REG_* types to PowerShell PropertyType values
+        $propType = switch ($ValueType) {
+            "REG_DWORD"     { "DWord" }
+            "REG_SZ"        { "String" }
+            "REG_EXPAND_SZ" { "ExpandString" }
+            "REG_MULTI_SZ"  { "MultiString" }
+            "REG_BINARY"    { "Binary" }
+            default         { "String" }
         }
         
-        # Apply the setting
+        # Apply the setting using create-or-update pattern
         if ($PSCmdlet.ShouldProcess("$RegistryPath\\$ValueName", "Set Registry Value to $ValueData")) {
-            Set-ItemProperty -Path $RegistryPath -Name $ValueName -Value $ValueData -Type $ValueType -Force
+            # Check if value exists
+            $valueExists = Get-ItemProperty -Path $RegistryPath -Name $ValueName -ErrorAction SilentlyContinue
+            
+            if ($valueExists) {
+                # Value exists - update it (no -Type parameter)
+                Set-ItemProperty -Path $RegistryPath -Name $ValueName -Value $ValueData -Force
+            } else {
+                # Value doesn't exist - create with PropertyType
+                New-ItemProperty -Path $RegistryPath -Name $ValueName -Value $ValueData -PropertyType $propType -Force | Out-Null
+            }
             
             # Verify the change
-            $newValue = Get-ItemPropertyValue -Path $RegistryPath -Name $ValueName
+            $newValue = Get-ItemPropertyValue -Path $RegistryPath -Name $ValueName -ErrorAction Stop
             if ($newValue -eq $ValueData) {
                 Write-Log "✓ Successfully applied: $PolicyName" -Level SUCCESS
                 $script:SuccessCount++
@@ -252,7 +269,7 @@ function Set-RegistryValue {
         }
         
     } catch {
-        Write-Log "✗ Failed to apply $PolicyName: $_" -Level ERROR
+        Write-Log "✗ Failed to apply $PolicyName - $_" -Level ERROR
         $script:FailureCount++
         return $false
     }
@@ -313,18 +330,20 @@ function Invoke-SecurityPolicy {
     )
     
     try {
-        $secEditFile = "$env:TEMP\\CIS-SecEdit-$(Get-Random).inf"
+        $randomId = Get-Random
+        $secEditFile = "$env:TEMP\\CIS-SecEdit-$randomId.inf"
+        $secEditDb = "$env:TEMP\\CIS-SecEdit-$randomId.sdb"
         
         # Create security template
         $secTemplate = @"
 [Unicode]
 Unicode=yes
+[Version]
+signature="`$CHICAGO`$"
+Revision=1
 [System Access]
 [Event Audit]
 [Registry Values]
-[Version]
-signature=`$CHICAGO`$
-Revision=1
 [$Section]
 $Setting = $Value
 "@
@@ -332,8 +351,8 @@ $Setting = $Value
         if ($PSCmdlet.ShouldProcess($PolicyName, "Apply Security Policy")) {
             $secTemplate | Out-File -FilePath $secEditFile -Encoding Unicode
             
-            # Apply security policy
-            $result = & secedit.exe /configure /db "$env:TEMP\\secedit.sdb" /cfg $secEditFile /quiet
+            # Apply security policy with unique DB file
+            $result = & secedit.exe /configure /db $secEditDb /cfg $secEditFile /quiet 2>&1
             
             if ($LASTEXITCODE -eq 0) {
                 Write-Log "✓ Applied security policy: $PolicyName" -Level SUCCESS
@@ -341,6 +360,9 @@ $Setting = $Value
                 return $true
             } else {
                 Write-Log "✗ Failed to apply security policy: $PolicyName (Exit code: $LASTEXITCODE)" -Level ERROR
+                if ($result) {
+                    Write-Log "secedit output: $result" -Level ERROR
+                }
                 $script:FailureCount++
                 return $false
             }
@@ -350,12 +372,15 @@ $Setting = $Value
         }
         
     } catch {
-        Write-Log "✗ Error applying security policy $PolicyName: $_" -Level ERROR
+        Write-Log "✗ Error applying security policy $PolicyName - $_" -Level ERROR
         $script:FailureCount++
         return $false
     } finally {
         if (Test-Path $secEditFile) {
             Remove-Item $secEditFile -Force -ErrorAction SilentlyContinue
+        }
+        if (Test-Path $secEditDb) {
+            Remove-Item $secEditDb -Force -ErrorAction SilentlyContinue
         }
     }
 }
@@ -505,7 +530,7 @@ function New-SystemBackup {
             "SecurityBackup" = $securityBackup
             "SystemInfo" = @{
                 "ComputerName" = $env:COMPUTERNAME
-                "OSVersion" = (Get-WmiObject Win32_OperatingSystem).Caption
+                "OSVersion" = (Get-CimInstance -ClassName Win32_OperatingSystem).Caption
                 "PowerShellVersion" = $PSVersionTable.PSVersion.ToString()
             }
         }
