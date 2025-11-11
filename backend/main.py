@@ -2,7 +2,7 @@
 CIS Benchmark PDF Parser Main Application
 """
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
@@ -241,6 +241,9 @@ audit_manager = AuditManager()
 
 # Initialize Remediation Manager (Step 7)
 remediation_manager = RemediationManager()
+
+# Initialize Realtime Monitoring Manager (Step 3 - Enhanced)
+from realtime_manager import realtime_manager
 
 # Utility function to save task status to file
 def save_task_status(task_id: str, status: ExtractionStatus):
@@ -3455,6 +3458,485 @@ async def run_remediation_maintenance():
     except Exception as e:
         print(f"Error running maintenance: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# MODULE 3 ENHANCED: REAL-TIME MONITORING & WEBSOCKET ENDPOINTS
+# ============================================================================
+
+@app.websocket("/ws/realtime")
+async def websocket_realtime_endpoint(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time monitoring
+    Provides live updates for:
+    - Policy changes
+    - Deployment status
+    - Audit results
+    - System metrics
+    - Compliance trends
+    """
+    await websocket.accept()
+    await realtime_manager.connect_client(websocket)
+    
+    try:
+        # Keep connection alive and handle incoming messages
+        while True:
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            
+            # Handle ping/pong for connection keepalive
+            if message.get("type") == "ping":
+                await websocket.send_json({"type": "pong"})
+            
+            # Handle client requests for specific data
+            elif message.get("type") == "request_stats":
+                stats = realtime_manager.get_statistics()
+                await websocket.send_json({
+                    "type": "statistics",
+                    "data": stats
+                })
+    
+    except WebSocketDisconnect:
+        realtime_manager.disconnect_client(websocket)
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        realtime_manager.disconnect_client(websocket)
+
+@app.get("/api/monitoring/statistics")
+async def get_monitoring_statistics():
+    """Get current real-time monitoring statistics"""
+    try:
+        stats = realtime_manager.get_statistics()
+        return {
+            "success": True,
+            "data": stats
+        }
+    except Exception as e:
+        print(f"Error getting monitoring statistics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/monitoring/metrics/current")
+async def get_current_metrics():
+    """Get current system metrics"""
+    try:
+        metrics = realtime_manager.get_system_metrics()
+        return {
+            "success": True,
+            "data": metrics.to_dict()
+        }
+    except Exception as e:
+        print(f"Error getting current metrics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/monitoring/start")
+async def start_monitoring():
+    """Start real-time monitoring background tasks"""
+    try:
+        await realtime_manager.start_monitoring()
+        return {
+            "success": True,
+            "message": "Real-time monitoring started"
+        }
+    except Exception as e:
+        print(f"Error starting monitoring: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/monitoring/stop")
+async def stop_monitoring():
+    """Stop real-time monitoring background tasks"""
+    try:
+        await realtime_manager.stop_monitoring()
+        return {
+            "success": True,
+            "message": "Real-time monitoring stopped"
+        }
+    except Exception as e:
+        print(f"Error stopping monitoring: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/monitoring/test-event")
+async def send_test_event():
+    """Send a test event for debugging"""
+    try:
+        await realtime_manager.notify_system_alert(
+            severity="info",
+            title="Test Event",
+            message="This is a test notification from the monitoring system",
+            data={"test": True, "timestamp": datetime.now().isoformat()}
+        )
+        return {
+            "success": True,
+            "message": "Test event sent"
+        }
+    except Exception as e:
+        print(f"Error sending test event: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# MODULE 3 ENHANCED: ADMX INTEGRATION ENDPOINTS
+# ============================================================================
+
+@app.post("/api/templates/{template_id}/export/admx")
+async def export_template_to_admx(
+    template_id: str,
+    namespace: str = "CISBenchmark",
+    prefix: str = "CIS",
+    validate: bool = True
+):
+    """
+    Export template to ADMX/ADML format
+    Integrates Module 2 ADMX generation into dashboard
+    """
+    try:
+        # Export using template manager's ADMX functionality
+        admx_content, adml_content, validation_result = template_manager.export_template_admx(
+            template_id=template_id,
+            namespace=namespace,
+            prefix=prefix,
+            validate=validate
+        )
+        
+        # Notify via real-time monitoring
+        template = template_manager.get_template(template_id)
+        await realtime_manager.notify_system_alert(
+            severity="success" if validation_result.is_valid else "warning",
+            title="ADMX Export Completed",
+            message=f"Template '{template.name}' exported to ADMX/ADML",
+            data={
+                "template_id": template_id,
+                "template_name": template.name,
+                "validation_errors": validation_result.errors_count,
+                "validation_warnings": validation_result.warnings_count
+            }
+        )
+        
+        return {
+            "success": True,
+            "data": {
+                "admx_content": admx_content,
+                "adml_content": adml_content,
+                "validation": {
+                    "is_valid": validation_result.is_valid,
+                    "errors_count": validation_result.errors_count,
+                    "warnings_count": validation_result.warnings_count,
+                    "info_count": validation_result.info_count,
+                    "issues": [
+                        {
+                            "severity": issue.severity,
+                            "message": issue.message,
+                            "location": issue.location,
+                            "recommendation": issue.recommendation
+                        }
+                        for issue in validation_result.issues
+                    ]
+                }
+            }
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        print(f"Error exporting template to ADMX: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/templates/{template_id}/save-admx")
+async def save_template_admx_files(
+    template_id: str,
+    output_dir: str = "admx_output",
+    namespace: str = "CISBenchmark",
+    prefix: str = "CIS"
+):
+    """Save template as ADMX/ADML files to disk"""
+    try:
+        result = template_manager.save_admx_to_files(
+            template_id=template_id,
+            output_dir=output_dir,
+            namespace=namespace,
+            prefix=prefix
+        )
+        
+        # Notify success
+        template = template_manager.get_template(template_id)
+        await realtime_manager.notify_system_alert(
+            severity="success",
+            title="ADMX Files Saved",
+            message=f"Template '{template.name}' saved as ADMX/ADML files",
+            data={
+                "template_id": template_id,
+                "admx_file": result["admx_file"],
+                "adml_file": result["adml_file"]
+            }
+        )
+        
+        return {
+            "success": True,
+            "data": result
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        print(f"Error saving ADMX files: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/templates/bulk-export-admx")
+async def bulk_export_templates_admx(
+    template_ids: List[str],
+    output_dir: str = "admx_bulk_output",
+    namespace: str = "CISBenchmark",
+    prefix: str = "CIS"
+):
+    """Bulk export multiple templates to ADMX/ADML"""
+    try:
+        results = template_manager.bulk_export_admx(
+            template_ids=template_ids,
+            output_dir=output_dir,
+            namespace=namespace,
+            prefix=prefix
+        )
+        
+        successful = len([r for r in results if r.get("success", False)])
+        
+        # Notify completion
+        await realtime_manager.notify_system_alert(
+            severity="success" if successful == len(template_ids) else "warning",
+            title="Bulk ADMX Export Completed",
+            message=f"Exported {successful}/{len(template_ids)} templates successfully",
+            data={
+                "total": len(template_ids),
+                "successful": successful,
+                "failed": len(template_ids) - successful
+            }
+        )
+        
+        return {
+            "success": True,
+            "data": {
+                "results": results,
+                "summary": {
+                    "total": len(template_ids),
+                    "successful": successful,
+                    "failed": len(template_ids) - successful
+                }
+            }
+        }
+    except Exception as e:
+        print(f"Error in bulk ADMX export: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# MODULE 3 ENHANCED: ADVANCED ANALYTICS ENDPOINTS
+# ============================================================================
+
+@app.get("/api/analytics/compliance-trends")
+async def get_compliance_trends(days: int = 30):
+    """Get compliance trends over time"""
+    try:
+        # Get all dashboard policies
+        all_policies = dashboard_manager.get_all_policies()
+        
+        # Calculate current compliance
+        compliant = len([p for p in all_policies if p.status == "compliant"])
+        non_compliant = len([p for p in all_policies if p.status == "non_compliant"])
+        pending = len([p for p in all_policies if p.status == "pending"])
+        
+        # Update realtime compliance trend
+        await realtime_manager.update_compliance_trend(
+            total_policies=len(all_policies),
+            compliant=compliant,
+            non_compliant=non_compliant,
+            pending=pending
+        )
+        
+        # Get historical trends from realtime manager
+        trends = [trend.to_dict() for trend in realtime_manager.compliance_history]
+        
+        return {
+            "success": True,
+            "data": {
+                "current": {
+                    "total": len(all_policies),
+                    "compliant": compliant,
+                    "non_compliant": non_compliant,
+                    "pending": pending,
+                    "compliance_rate": (compliant / len(all_policies) * 100) if all_policies else 0
+                },
+                "trends": trends
+            }
+        }
+    except Exception as e:
+        print(f"Error getting compliance trends: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/analytics/deployment-success-rate")
+async def get_deployment_success_rate(days: int = 30):
+    """Get deployment success rate analytics"""
+    try:
+        # Get all deployment jobs
+        all_jobs = deployment_manager.get_all_jobs()
+        
+        # Calculate success rates
+        total = len(all_jobs)
+        completed = len([j for j in all_jobs if j.status == "completed"])
+        failed = len([j for j in all_jobs if j.status == "failed"])
+        running = len([j for j in all_jobs if j.status == "running"])
+        
+        success_rate = (completed / total * 100) if total > 0 else 0
+        
+        return {
+            "success": True,
+            "data": {
+                "total_deployments": total,
+                "completed": completed,
+                "failed": failed,
+                "running": running,
+                "success_rate": success_rate,
+                "recent_jobs": [
+                    {
+                        "job_id": job.job_id,
+                        "package_name": job.package_name,
+                        "status": job.status,
+                        "created_at": job.created_at,
+                        "completed_at": job.completed_at
+                    }
+                    for job in sorted(all_jobs, key=lambda x: x.created_at, reverse=True)[:10]
+                ]
+            }
+        }
+    except Exception as e:
+        print(f"Error getting deployment success rate: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/analytics/audit-history")
+async def get_audit_history_analytics(limit: int = 50):
+    """Get audit history with trends"""
+    try:
+        # Get all audit runs
+        all_runs = audit_manager.get_all_runs()
+        
+        # Sort by date
+        sorted_runs = sorted(
+            all_runs,
+            key=lambda x: x.start_time,
+            reverse=True
+        )[:limit]
+        
+        # Calculate trends
+        compliance_over_time = []
+        for run in sorted_runs:
+            if run.summary:
+                compliance_over_time.append({
+                    "timestamp": run.start_time,
+                    "compliance_rate": run.summary.compliance_rate,
+                    "compliant": run.summary.compliant_count,
+                    "non_compliant": run.summary.non_compliant_count
+                })
+        
+        return {
+            "success": True,
+            "data": {
+                "total_audits": len(all_runs),
+                "recent_audits": [
+                    {
+                        "audit_id": run.audit_id,
+                        "name": run.name,
+                        "status": run.status,
+                        "compliance_rate": run.summary.compliance_rate if run.summary else 0,
+                        "start_time": run.start_time,
+                        "end_time": run.end_time
+                    }
+                    for run in sorted_runs
+                ],
+                "compliance_trends": compliance_over_time
+            }
+        }
+    except Exception as e:
+        print(f"Error getting audit history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/analytics/policy-statistics")
+async def get_advanced_policy_statistics():
+    """Get comprehensive policy statistics"""
+    try:
+        # Get template policies
+        template_policies = template_manager.get_all_policies()
+        
+        # Get dashboard policies
+        dashboard_policies = dashboard_manager.get_all_policies()
+        
+        # Get all templates
+        templates = template_manager.get_all_templates()
+        
+        # Calculate statistics
+        template_stats = {
+            "total_policies": len(template_policies),
+            "total_templates": len(templates),
+            "policies_by_cis_level": {},
+            "policies_by_category": {}
+        }
+        
+        # Group by CIS level
+        for policy in template_policies:
+            level = policy.cis_level or "Unknown"
+            template_stats["policies_by_cis_level"][level] = \
+                template_stats["policies_by_cis_level"].get(level, 0) + 1
+        
+        # Group by category
+        for policy in template_policies:
+            category = policy.category or "Uncategorized"
+            template_stats["policies_by_category"][category] = \
+                template_stats["policies_by_category"].get(category, 0) + 1
+        
+        dashboard_stats = {
+            "total_policies": len(dashboard_policies),
+            "policies_by_status": {},
+            "policies_by_priority": {}
+        }
+        
+        # Group by status
+        for policy in dashboard_policies:
+            status = policy.status
+            dashboard_stats["policies_by_status"][status] = \
+                dashboard_stats["policies_by_status"].get(status, 0) + 1
+        
+        # Group by priority
+        for policy in dashboard_policies:
+            priority = policy.priority
+            dashboard_stats["policies_by_priority"][priority] = \
+                dashboard_stats["policies_by_priority"].get(priority, 0) + 1
+        
+        return {
+            "success": True,
+            "data": {
+                "template_statistics": template_stats,
+                "dashboard_statistics": dashboard_stats,
+                "timestamp": datetime.now().isoformat()
+            }
+        }
+    except Exception as e:
+        print(f"Error getting policy statistics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# APPLICATION STARTUP/SHUTDOWN HANDLERS
+# ============================================================================
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize monitoring on application startup"""
+    print("🚀 Starting CIS Benchmark GPO Tool")
+    print("📊 Initializing real-time monitoring...")
+    await realtime_manager.start_monitoring()
+    print("✅ Real-time monitoring started")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on application shutdown"""
+    print("🛑 Shutting down CIS Benchmark GPO Tool")
+    print("📊 Stopping real-time monitoring...")
+    await realtime_manager.stop_monitoring()
+    print("✅ Real-time monitoring stopped")
 
 
 if __name__ == "__main__":
