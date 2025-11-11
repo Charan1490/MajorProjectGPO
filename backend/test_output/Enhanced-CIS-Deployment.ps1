@@ -32,7 +32,7 @@
     .\Deploy-CISCompliance.ps1 -BackupPath "D:\Backups"
 
 .NOTES
-    Generated: 2025-10-12T19:17:10.463531
+    Generated: 2025-11-11T12:13:32.747111
     Target OS: Windows 11
     
     REQUIREMENTS:
@@ -170,11 +170,11 @@ function Set-RegistryValue {
             # Verify the change
             $newValue = Get-ItemPropertyValue -Path $RegistryPath -Name $ValueName
             if ($newValue -eq $ValueData) {
-                Write-Log "[SUCCESS] Successfully applied: $PolicyName" -Level SUCCESS
+                Write-Log "✓ Successfully applied: $PolicyName" -Level SUCCESS
                 $script:SuccessCount++
                 return $true
             } else {
-                Write-Log "[FAIL] Verification failed for: $PolicyName (Expected: $ValueData, Got: $newValue)" -Level ERROR
+                Write-Log "✗ Verification failed for: $PolicyName (Expected: $ValueData, Got: $newValue)" -Level ERROR
                 $script:FailureCount++
                 return $false
             }
@@ -184,7 +184,7 @@ function Set-RegistryValue {
         }
         
     } catch {
-        Write-Log "[ERROR] Failed to apply $PolicyName" -Level ERROR
+        Write-Log "✗ Failed to apply $PolicyName: $_" -Level ERROR
         $script:FailureCount++
         return $false
     }
@@ -208,22 +208,22 @@ function Test-RegistryValue {
     
     try {
         if (-not (Test-Path $RegistryPath)) {
-            Write-Log "[X] Registry path does not exist: $RegistryPath" -Level WARNING
+            Write-Log "✗ Registry path does not exist: $RegistryPath" -Level WARNING
             return $false
         }
         
         $currentValue = Get-ItemPropertyValue -Path $RegistryPath -Name $ValueName -ErrorAction SilentlyContinue
         
         if ($currentValue -eq $ExpectedValue) {
-            Write-Log "[SUCCESS] Verified: $PolicyName" -Level SUCCESS
+            Write-Log "✓ Verified: $PolicyName" -Level SUCCESS
             return $true
         } else {
-            Write-Log "[FAIL] Verification failed: $PolicyName (Expected: $ExpectedValue, Current: $currentValue)" -Level WARNING
+            Write-Log "✗ Verification failed: $PolicyName (Expected: $ExpectedValue, Current: $currentValue)" -Level WARNING
             return $false
         }
         
     } catch {
-        Write-Log "[ERROR] Error verifying $PolicyName" -Level ERROR
+        Write-Log "✗ Error verifying $PolicyName: $_" -Level ERROR
         return $false
     }
 }
@@ -268,11 +268,11 @@ $Setting = $Value
             $result = & secedit.exe /configure /db "$env:TEMP\secedit.sdb" /cfg $secEditFile /quiet
             
             if ($LASTEXITCODE -eq 0) {
-                Write-Log "[SUCCESS] Applied security policy: $PolicyName" -Level SUCCESS
+                Write-Log "✓ Applied security policy: $PolicyName" -Level SUCCESS
                 $script:SuccessCount++
                 return $true
             } else {
-                Write-Log "[FAIL] Failed to apply security policy: $PolicyName (Exit code: $LASTEXITCODE)" -Level ERROR
+                Write-Log "✗ Failed to apply security policy: $PolicyName (Exit code: $LASTEXITCODE)" -Level ERROR
                 $script:FailureCount++
                 return $false
             }
@@ -282,7 +282,7 @@ $Setting = $Value
         }
         
     } catch {
-        Write-Log "[ERROR] Error applying security policy $PolicyName" -Level ERROR
+        Write-Log "✗ Error applying security policy $PolicyName: $_" -Level ERROR
         $script:FailureCount++
         return $false
     } finally {
@@ -321,17 +321,17 @@ function Set-GroupPolicy {
                 $result = & lgpo.exe /t $tempFile
                 
                 if ($LASTEXITCODE -eq 0) {
-                    Write-Log "[SUCCESS] Applied group policy: $PolicyName" -Level SUCCESS
+                    Write-Log "✓ Applied group policy: $PolicyName" -Level SUCCESS
                     $script:SuccessCount++
                     return $true
                 } else {
-                    Write-Log "[FAIL] Failed to apply group policy: $PolicyName" -Level ERROR
+                    Write-Log "✗ Failed to apply group policy: $PolicyName" -Level ERROR
                     $script:FailureCount++
                     return $false
                 }
             }
         } catch {
-            Write-Log "[ERROR] Error applying group policy $PolicyName" -Level ERROR
+            Write-Log "✗ Error applying group policy $PolicyName: $_" -Level ERROR
             $script:FailureCount++
             return $false
         } finally {
@@ -380,9 +380,9 @@ function New-SystemBackup {
             Write-Log "Backing up registry to: $registryBackup"
             $result = & reg.exe export HKLM $registryBackup /y
             if ($LASTEXITCODE -eq 0) {
-                Write-Log "[OK] Registry backup completed" -Level SUCCESS
+                Write-Log "✓ Registry backup completed" -Level SUCCESS
             } else {
-                Write-Log "[X] Registry backup failed" -Level ERROR
+                Write-Log "✗ Registry backup failed" -Level ERROR
                 return $false
             }
         }
@@ -395,18 +395,18 @@ function New-SystemBackup {
                 if ($lgpoPath) {
                     & lgpo.exe /b $gpoBackup
                     if ($LASTEXITCODE -eq 0) {
-                        Write-Log "[OK] Group Policy backup completed" -Level SUCCESS
+                        Write-Log "✓ Group Policy backup completed" -Level SUCCESS
                     }
                 } else {
                     Write-Log "LGPO.exe not found, copying policy files manually" -Level WARNING
                     $policyPath = "$env:SystemRoot\System32\GroupPolicy"
                     if (Test-Path $policyPath) {
                         Copy-Item -Path $policyPath -Destination $gpoBackup -Recurse -Force
-                        Write-Log "[OK] Group Policy files copied" -Level SUCCESS
+                        Write-Log "✓ Group Policy files copied" -Level SUCCESS
                     }
                 }
             } catch {
-                Write-Log "[X] Group Policy backup failed: $_" -Level ERROR
+                Write-Log "✗ Group Policy backup failed: $_" -Level ERROR
             }
         }
         
@@ -416,12 +416,12 @@ function New-SystemBackup {
             try {
                 & secedit.exe /export /cfg $securityBackup
                 if ($LASTEXITCODE -eq 0) {
-                    Write-Log "[OK] Security settings backup completed" -Level SUCCESS
+                    Write-Log "✓ Security settings backup completed" -Level SUCCESS
                 } else {
-                    Write-Log "[X] Security settings backup failed" -Level ERROR
+                    Write-Log "✗ Security settings backup failed" -Level ERROR
                 }
             } catch {
-                Write-Log "[X] Security settings backup error: $_" -Level ERROR
+                Write-Log "✗ Security settings backup error: $_" -Level ERROR
             }
         }
         
@@ -440,13 +440,13 @@ function New-SystemBackup {
         
         $manifestPath = Join-Path $BackupPath "Backup-Manifest-$timestamp.json"
         $manifest | ConvertTo-Json -Depth 3 | Out-File -FilePath $manifestPath -Encoding UTF8
-        Write-Log "[OK] Backup manifest created: $manifestPath" -Level SUCCESS
+        Write-Log "✓ Backup manifest created: $manifestPath" -Level SUCCESS
         
         Write-Log "System backup completed successfully" -Level SUCCESS
         return $true
         
     } catch {
-        Write-Log "[X] System backup failed: $_" -Level ERROR
+        Write-Log "✗ System backup failed: $_" -Level ERROR
         return $false
     }
 }
@@ -476,13 +476,13 @@ Write-Log "Starting CIS policy application..." -Level INFO
 Write-Log "Applying policy: Ensure 'Minimum password age' is set to '1 or more day(s)'"
 try {
     $success = Set-RegistryValue \
-        -RegistryPath "HKLM\SYSTEM\CurrentControlSet\Services\Netlogon\Parameters" \
+        -RegistryPath "HKLM:\SYSTEM\CurrentControlSet\Services\Netlogon\Parameters" \
         -ValueName "MinimumPasswordAge" \
         -ValueData 1 \
         -ValueType "REG_DWORD" \
         -PolicyName "Ensure 'Minimum password age' is set to '1 or more day(s)'"
     
-    if ($success -and $false) {
+    if ($success -and false) {
         $script:RebootRequired = $true
         Write-Log "Policy Ensure 'Minimum password age' is set to '1 or more day(s)' requires system reboot" -Level WARNING
     }
@@ -514,9 +514,9 @@ try {
 try {
     Write-Log "Executing custom command for: Ensure 'Minimum password age' is set to '1 or more day(s)'"
     Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\Netlogon\Parameters' -Name 'MinimumPasswordAge' -Value 1 -Type DWord
-    Write-Log "[OK] Custom command completed: Ensure 'Minimum password age' is set to '1 or more day(s)'" -Level SUCCESS
+    Write-Log "✓ Custom command completed: Ensure 'Minimum password age' is set to '1 or more day(s)'" -Level SUCCESS
 } catch {
-    Write-Log "[X] Custom command failed for Ensure 'Minimum password age' is set to '1 or more day(s)': $_" -Level ERROR
+    Write-Log "✗ Custom command failed for Ensure 'Minimum password age' is set to '1 or more day(s)': $_" -Level ERROR
 }
 
 # ----------------------------------------
@@ -529,13 +529,13 @@ try {
 Write-Log "Applying policy: Ensure 'Accounts: Block Microsoft accounts' is set to 'Users can't add or log on with Microsoft accounts'"
 try {
     $success = Set-RegistryValue \
-        -RegistryPath "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" \
+        -RegistryPath "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" \
         -ValueName "NoConnectedUser" \
         -ValueData 3 \
         -ValueType "REG_DWORD" \
         -PolicyName "Ensure 'Accounts: Block Microsoft accounts' is set to 'Users can't add or log on with Microsoft accounts'"
     
-    if ($success -and $false) {
+    if ($success -and false) {
         $script:RebootRequired = $true
         Write-Log "Policy Ensure 'Accounts: Block Microsoft accounts' is set to 'Users can't add or log on with Microsoft accounts' requires system reboot" -Level WARNING
     }
@@ -557,9 +557,9 @@ try {
 try {
     Write-Log "Executing custom command for: Ensure 'Accounts: Block Microsoft accounts' is set to 'Users can't add or log on with Microsoft accounts'"
     Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'NoConnectedUser' -Value 3 -Type DWord
-    Write-Log "[OK] Custom command completed: Ensure 'Accounts: Block Microsoft accounts' is set to 'Users can't add or log on with Microsoft accounts'" -Level SUCCESS
+    Write-Log "✓ Custom command completed: Ensure 'Accounts: Block Microsoft accounts' is set to 'Users can't add or log on with Microsoft accounts'" -Level SUCCESS
 } catch {
-    Write-Log "[X] Custom command failed for Ensure 'Accounts: Block Microsoft accounts' is set to 'Users can't add or log on with Microsoft accounts': $_" -Level ERROR
+    Write-Log "✗ Custom command failed for Ensure 'Accounts: Block Microsoft accounts' is set to 'Users can't add or log on with Microsoft accounts': $_" -Level ERROR
 }
 
 # ----------------------------------------
@@ -572,13 +572,13 @@ try {
 Write-Log "Applying policy: Ensure 'Prevent enabling lock screen camera' is set to 'Enabled'"
 try {
     $success = Set-RegistryValue \
-        -RegistryPath "HKLM\SOFTWARE\Policies\Microsoft\Windows\Personalization" \
+        -RegistryPath "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization" \
         -ValueName "NoLockScreenCamera" \
         -ValueData 1 \
         -ValueType "REG_DWORD" \
         -PolicyName "Ensure 'Prevent enabling lock screen camera' is set to 'Enabled'"
     
-    if ($success -and $false) {
+    if ($success -and false) {
         $script:RebootRequired = $true
         Write-Log "Policy Ensure 'Prevent enabling lock screen camera' is set to 'Enabled' requires system reboot" -Level WARNING
     }
@@ -600,9 +600,9 @@ try {
 try {
     Write-Log "Executing custom command for: Ensure 'Prevent enabling lock screen camera' is set to 'Enabled'"
     if (-not (Test-Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization')) { New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' -Force }; Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' -Name 'NoLockScreenCamera' -Value 1 -Type DWord
-    Write-Log "[OK] Custom command completed: Ensure 'Prevent enabling lock screen camera' is set to 'Enabled'" -Level SUCCESS
+    Write-Log "✓ Custom command completed: Ensure 'Prevent enabling lock screen camera' is set to 'Enabled'" -Level SUCCESS
 } catch {
-    Write-Log "[X] Custom command failed for Ensure 'Prevent enabling lock screen camera' is set to 'Enabled': $_" -Level ERROR
+    Write-Log "✗ Custom command failed for Ensure 'Prevent enabling lock screen camera' is set to 'Enabled': $_" -Level ERROR
 }
 
 
@@ -617,7 +617,7 @@ if (-not $SkipVerification) {
 
     # Verify: Ensure 'Minimum password age' is set to '1 or more day(s)'
     try {
-        $value = Get-ItemPropertyValue -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\Netlogon\Parameters' -Name 'MinimumPasswordAge' -ErrorAction SilentlyContinue; if ($value -ge 1) { Write-Log "[OK] Minimum password age verified" -Level SUCCESS } else { Write-Log "[X] Minimum password age verification failed" -Level ERROR }
+        $value = Get-ItemPropertyValue -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\Netlogon\Parameters' -Name 'MinimumPasswordAge' -ErrorAction SilentlyContinue; if ($value -ge 1) { Write-Log "✓ Minimum password age verified" -Level SUCCESS } else { Write-Log "✗ Minimum password age verification failed" -Level ERROR }
         $script:VerificationPassed++
     } catch {
         Write-Log "Verification failed for Ensure 'Minimum password age' is set to '1 or more day(s)': $_" -Level WARNING
@@ -626,7 +626,7 @@ if (-not $SkipVerification) {
 
     # Verify: Ensure 'Accounts: Block Microsoft accounts' is set to 'Users can't add or log on with Microsoft accounts'
     try {
-        $value = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'NoConnectedUser' -ErrorAction SilentlyContinue; if ($value -eq 3) { Write-Log "[OK] Microsoft accounts properly blocked" -Level SUCCESS } else { Write-Log "[X] Microsoft accounts blocking verification failed" -Level ERROR }
+        $value = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'NoConnectedUser' -ErrorAction SilentlyContinue; if ($value -eq 3) { Write-Log "✓ Microsoft accounts properly blocked" -Level SUCCESS } else { Write-Log "✗ Microsoft accounts blocking verification failed" -Level ERROR }
         $script:VerificationPassed++
     } catch {
         Write-Log "Verification failed for Ensure 'Accounts: Block Microsoft accounts' is set to 'Users can't add or log on with Microsoft accounts': $_" -Level WARNING
@@ -635,7 +635,7 @@ if (-not $SkipVerification) {
 
     # Verify: Ensure 'Prevent enabling lock screen camera' is set to 'Enabled'
     try {
-        $value = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' -Name 'NoLockScreenCamera' -ErrorAction SilentlyContinue; if ($value -eq 1) { Write-Log "[OK] Lock screen camera prevention verified" -Level SUCCESS } else { Write-Log "[X] Lock screen camera prevention verification failed" -Level ERROR }
+        $value = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' -Name 'NoLockScreenCamera' -ErrorAction SilentlyContinue; if ($value -eq 1) { Write-Log "✓ Lock screen camera prevention verified" -Level SUCCESS } else { Write-Log "✗ Lock screen camera prevention verification failed" -Level ERROR }
         $script:VerificationPassed++
     } catch {
         Write-Log "Verification failed for Ensure 'Prevent enabling lock screen camera' is set to 'Enabled': $_" -Level WARNING
@@ -720,13 +720,13 @@ Write-Host "Completed: $($script:EndTime)" -ForegroundColor White
 Write-Host "Duration: $($script:Duration.ToString('hh\:mm\:ss'))" -ForegroundColor White
 Write-Host ""
 Write-Host "Results:" -ForegroundColor Yellow
-Write-Host "  [OK] Successful: $script:SuccessCount" -ForegroundColor Green
-Write-Host "  [X] Failed: $script:FailureCount" -ForegroundColor Red
-Write-Host "  [!] Warnings: $script:WarningCount" -ForegroundColor Yellow
+Write-Host "  ✓ Successful: $script:SuccessCount" -ForegroundColor Green
+Write-Host "  ✗ Failed: $script:FailureCount" -ForegroundColor Red
+Write-Host "  ⚠ Warnings: $script:WarningCount" -ForegroundColor Yellow
 Write-Host ""
 
 if ($script:RebootRequired) {
-    Write-Host "[!] SYSTEM REBOOT REQUIRED [!]" -ForegroundColor Red -BackgroundColor Yellow
+    Write-Host "⚠ SYSTEM REBOOT REQUIRED ⚠" -ForegroundColor Red -BackgroundColor Yellow
     Write-Host "Some policies require a system restart to take effect." -ForegroundColor Yellow
     
     if ($ForceReboot) {

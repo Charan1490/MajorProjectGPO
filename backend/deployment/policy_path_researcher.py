@@ -202,7 +202,7 @@ Provide accurate, tested information for Windows 10/11 systems.
             policy_path = PolicyPath(
                 policy_id=policy.get('id', ''),
                 policy_name=policy.get('name', ''),
-                registry_path=f"{data.get('registry_hive', 'HKLM')}\\{data.get('registry_key', '')}",
+                registry_path=f"{data.get('registry_hive', 'HKLM')}:\\{data.get('registry_key', '')}",
                 registry_hive=data.get('registry_hive', 'HKLM'),
                 registry_key=data.get('registry_key', ''),
                 registry_value_name=data.get('registry_value_name', ''),
@@ -303,7 +303,7 @@ Provide accurate, tested information for Windows 10/11 systems.
         policy_path = PolicyPath(
             policy_id=policy.get('id', ''),
             policy_name=policy.get('name', ''),
-            registry_path=f"{best_match['hive']}\\{best_match['key']}",
+            registry_path=f"{best_match['hive']}:\\{best_match['key']}",
             registry_hive=best_match['hive'],
             registry_key=best_match['key'],
             registry_value_name=self._generate_value_name(policy),

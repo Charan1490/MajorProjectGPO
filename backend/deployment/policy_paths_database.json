@@ -2,7 +2,7 @@
   "1.1.1": {
     "policy_id": "1.1.1",
     "policy_name": "Ensure 'Minimum password age' is set to '1 or more day(s)'",
-    "registry_path": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Netlogon\\Parameters",
+    "registry_path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Netlogon\\Parameters",
     "registry_hive": "HKLM",
     "registry_key": "SYSTEM\\CurrentControlSet\\Services\\Netlogon\\Parameters",
     "registry_value_name": "MinimumPasswordAge",
@@ -22,7 +22,7 @@
   "1.1.2": {
     "policy_id": "1.1.2",
     "policy_name": "Ensure 'Maximum password age' is set to '365 or fewer days, but not 0'",
-    "registry_path": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Netlogon\\Parameters",
+    "registry_path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Netlogon\\Parameters",
     "registry_hive": "HKLM",
     "registry_key": "SYSTEM\\CurrentControlSet\\Services\\Netlogon\\Parameters",
     "registry_value_name": "MaximumPasswordAge",
@@ -42,7 +42,7 @@
   "2.2.1": {
     "policy_id": "2.2.1",
     "policy_name": "Ensure 'Access Credential Manager as a trusted caller' is set to 'No One'",
-    "registry_path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+    "registry_path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
     "registry_hive": "HKLM",
     "registry_key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
     "registry_value_name": "SeTrustedCredManAccessPrivilege",
@@ -62,7 +62,7 @@
   "2.3.1.1": {
     "policy_id": "2.3.1.1",
     "policy_name": "Ensure 'Accounts: Block Microsoft accounts' is set to 'Users can't add or log on with Microsoft accounts'",
-    "registry_path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+    "registry_path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
     "registry_hive": "HKLM",
     "registry_key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
     "registry_value_name": "NoConnectedUser",
@@ -80,7 +80,7 @@
   "2.3.1.2": {
     "policy_id": "2.3.1.2",
     "policy_name": "Ensure 'Accounts: Guest account status' is set to 'Disabled'",
-    "registry_path": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+    "registry_path": "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
     "registry_hive": "HKLM",
     "registry_key": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
     "registry_value_name": "GuestAccountStatus",
@@ -100,7 +100,7 @@
   "2.3.7.1": {
     "policy_id": "2.3.7.1",
     "policy_name": "Ensure 'Interactive logon: Do not require CTRL+ALT+DEL' is set to 'Disabled'",
-    "registry_path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+    "registry_path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
     "registry_hive": "HKLM",
     "registry_key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
     "registry_value_name": "DisableCAD",
@@ -118,7 +118,7 @@
   "18.1.1.1": {
     "policy_id": "18.1.1.1",
     "policy_name": "Ensure 'Prevent enabling lock screen camera' is set to 'Enabled'",
-    "registry_path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Personalization",
+    "registry_path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\Personalization",
     "registry_hive": "HKLM",
     "registry_key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Personalization",
     "registry_value_name": "NoLockScreenCamera",
@@ -136,7 +136,7 @@
   "18.9.8.1": {
     "policy_id": "18.9.8.1",
     "policy_name": "Ensure 'Block all consumer Microsoft account user authentication' is set to 'Enabled'",
-    "registry_path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\MicrosoftAccount",
+    "registry_path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\MicrosoftAccount",
     "registry_hive": "HKLM",
     "registry_key": "SOFTWARE\\Policies\\Microsoft\\MicrosoftAccount",
     "registry_value_name": "DisableUserAuth",
