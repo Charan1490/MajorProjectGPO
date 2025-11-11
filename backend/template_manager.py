@@ -5,14 +5,20 @@ Handles template creation, editing, grouping, and policy management
 
 import json
 import os
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
 from datetime import datetime
 import uuid
+import logging
 
 from models_templates import (
     PolicyItem, PolicyTemplate, PolicyGroup, PolicyEdit, PolicyStatus,
     PolicyType, TemplateExport, BulkEditRequest, PolicySearchRequest
 )
+from enhanced_admx_generator import EnhancedADMXGenerator, generate_admx_from_template
+from template_validator import TemplateValidator, ValidationResult
+from complex_policy_support import ComplexPolicyAnalyzer
+
+logger = logging.getLogger(__name__)
 
 
 class TemplateManager:
@@ -416,3 +422,174 @@ class TemplateManager:
             )
         
         return "\n".join(csv_lines)
+    
+    # ADMX/ADML Export functionality (Module 2 Enhancement)
+    def export_template_admx(self, template_id: str, 
+                            namespace: str = "CISBenchmark",
+                            prefix: str = "CIS",
+                            validate: bool = True) -> Tuple[str, str, Optional[ValidationResult]]:
+        """
+        Export template as ADMX/ADML Group Policy Administrative Templates
+        
+        Args:
+            template_id: Template ID to export
+            namespace: ADMX namespace (default: CISBenchmark)
+            prefix: Policy prefix (default: CIS)
+            validate: Whether to validate generated templates (default: True)
+            
+        Returns:
+            Tuple of (admx_content, adml_content, validation_result)
+            
+        Raises:
+            ValueError: If template not found
+        """
+        logger.info(f"Exporting template {template_id} to ADMX/ADML")
+        
+        # Get template with policies
+        export_data = self.get_template_with_policies(template_id)
+        if not export_data:
+            raise ValueError(f"Template {template_id} not found")
+        
+        template = export_data.template
+        policies = export_data.policies
+        
+        # Enhance policies with complex policy data
+        enhanced_policies = []
+        for policy in policies:
+            policy_dict = policy.model_dump() if hasattr(policy, 'model_dump') else policy.dict()
+            enhanced_dict = ComplexPolicyAnalyzer.enhance_policy_with_complex_data(policy_dict)
+            
+            # Create enhanced PolicyItem
+            try:
+                enhanced_policy = PolicyItem(**enhanced_dict)
+                enhanced_policies.append(enhanced_policy)
+            except Exception as e:
+                logger.warning(f"Failed to enhance policy {policy.policy_id}: {e}")
+                enhanced_policies.append(policy)
+        
+        # Generate ADMX/ADML
+        admx_content, adml_content = generate_admx_from_template(
+            template,
+            enhanced_policies,
+            namespace=namespace,
+            prefix=prefix
+        )
+        
+        # Validate if requested
+        validation_result = None
+        if validate:
+            validator = TemplateValidator()
+            validation_result = validator.validate_pair(admx_content, adml_content)
+            logger.info(f"Validation result: {validation_result}")
+        
+        logger.info(f"Generated ADMX/ADML for template {template.name}: {len(enhanced_policies)} policies")
+        
+        return admx_content, adml_content, validation_result
+    
+    def save_admx_to_files(self, template_id: str, 
+                           output_dir: str = "admx_output",
+                           namespace: str = "CISBenchmark",
+                           prefix: str = "CIS",
+                           validate: bool = True) -> Dict[str, Any]:
+        """
+        Export template to ADMX/ADML files
+        
+        Args:
+            template_id: Template ID to export
+            output_dir: Output directory for files
+            namespace: ADMX namespace
+            prefix: Policy prefix
+            validate: Whether to validate templates
+            
+        Returns:
+            Dictionary with file paths and validation results
+        """
+        # Get template info
+        template = self.get_template(template_id)
+        if not template:
+            raise ValueError(f"Template {template_id} not found")
+        
+        # Create output directory
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Generate ADMX/ADML
+        admx_content, adml_content, validation_result = self.export_template_admx(
+            template_id,
+            namespace=namespace,
+            prefix=prefix,
+            validate=validate
+        )
+        
+        # Generate file names from template name
+        safe_name = "".join(c for c in template.name if c.isalnum() or c in (' ', '-', '_'))
+        safe_name = safe_name.replace(' ', '_')
+        
+        # Save ADMX file
+        admx_filename = f"{prefix}_{safe_name}.admx"
+        admx_path = os.path.join(output_dir, admx_filename)
+        with open(admx_path, 'w', encoding='utf-8') as f:
+            f.write(admx_content)
+        
+        # Save ADML file (en-US language)
+        adml_dir = os.path.join(output_dir, "en-US")
+        os.makedirs(adml_dir, exist_ok=True)
+        adml_filename = f"{prefix}_{safe_name}.adml"
+        adml_path = os.path.join(adml_dir, adml_filename)
+        with open(adml_path, 'w', encoding='utf-8') as f:
+            f.write(adml_content)
+        
+        result = {
+            "template_id": template_id,
+            "template_name": template.name,
+            "admx_file": admx_path,
+            "adml_file": adml_path,
+            "namespace": namespace,
+            "prefix": prefix,
+            "validation": {
+                "is_valid": validation_result.is_valid if validation_result else None,
+                "errors": validation_result.errors_count if validation_result else 0,
+                "warnings": validation_result.warnings_count if validation_result else 0,
+            } if validation_result else None
+        }
+        
+        logger.info(f"Saved ADMX/ADML files to {output_dir}")
+        
+        return result
+    
+    def bulk_export_admx(self, template_ids: List[str],
+                        output_dir: str = "admx_output",
+                        namespace: str = "CISBenchmark",
+                        prefix: str = "CIS") -> List[Dict[str, Any]]:
+        """
+        Export multiple templates to ADMX/ADML files
+        
+        Args:
+            template_ids: List of template IDs to export
+            output_dir: Output directory
+            namespace: ADMX namespace
+            prefix: Policy prefix
+            
+        Returns:
+            List of export results
+        """
+        results = []
+        
+        for template_id in template_ids:
+            try:
+                result = self.save_admx_to_files(
+                    template_id,
+                    output_dir=output_dir,
+                    namespace=namespace,
+                    prefix=prefix,
+                    validate=True
+                )
+                results.append(result)
+            except Exception as e:
+                logger.error(f"Failed to export template {template_id}: {e}")
+                results.append({
+                    "template_id": template_id,
+                    "error": str(e),
+                    "success": False
+                })
+        
+        return results
