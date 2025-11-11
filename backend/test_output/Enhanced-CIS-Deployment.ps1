@@ -409,19 +409,24 @@ function New-SystemBackup {
             )
             
             $backupSuccess = $true
+            $registryFiles = @()
             foreach ($key in $keysToBackup) {
                 $safeKeyName = ($key -replace '\\|:','_')
                 $keyFile = $registryBackup -replace '\.reg$', "-$safeKeyName.reg"
                 $result = & reg.exe export $key $keyFile /y 2>&1
                 if ($LASTEXITCODE -eq 0) {
                     Write-Log "✓ Backed up: $key" -Level INFO -NoConsole
+                    $registryFiles += $keyFile
                 } else {
                     Write-Log "⚠ Could not backup: $key (may not exist yet or permission issue). reg.exe output: $result" -Level WARNING -NoConsole
                     $backupSuccess = $false
                 }
             }
             
-            if ($backupSuccess) {
+            if (-not $backupSuccess) {
+                Write-Log "✗ One or more registry keys failed to backup. Review the individual backup messages above." -Level ERROR
+                # Continue anyway as keys may not exist yet (will be created by script)
+            } else {
                 Write-Log "✓ Registry backup completed" -Level SUCCESS
             }
         }
@@ -440,6 +445,9 @@ function New-SystemBackup {
                     Write-Log "LGPO.exe not found, copying policy files manually" -Level WARNING
                     $policyPath = "$env:SystemRoot\System32\GroupPolicy"
                     if (Test-Path $policyPath) {
+                        if (-not (Test-Path $gpoBackup)) {
+                            New-Item -ItemType Directory -Path $gpoBackup -Force | Out-Null
+                        }
                         Copy-Item -Path $policyPath -Destination $gpoBackup -Recurse -Force
                         Write-Log "✓ Group Policy files copied" -Level SUCCESS
                     }
@@ -467,7 +475,7 @@ function New-SystemBackup {
         # Create backup manifest
         $manifest = @{
             "BackupDate" = $timestamp
-            "RegistryBackup" = $registryBackup
+            "RegistryBackups" = $registryFiles
             "GPOBackup" = $gpoBackup
             "SecurityBackup" = $securityBackup
             "SystemInfo" = @{
@@ -521,7 +529,10 @@ try {
         -ValueType "REG_DWORD" \
         -PolicyName "Ensure 'Minimum password age' is set to '1 or more day(s)'"
     
-    if ($success -and false) {
+    # Set this per-policy depending on whether it actually needs a reboot
+    $policyRequiresReboot = $false  # This policy does not require reboot
+    
+    if ($success -and $policyRequiresReboot) {
         $script:RebootRequired = $true
         Write-Log "Policy Ensure 'Minimum password age' is set to '1 or more day(s)' requires system reboot" -Level WARNING
     }
@@ -566,7 +577,10 @@ try {
         -ValueType "REG_DWORD" \
         -PolicyName "Ensure 'Accounts: Block Microsoft accounts' is set to 'Users can't add or log on with Microsoft accounts'"
     
-    if ($success -and false) {
+    # Set this per-policy depending on whether it actually needs a reboot
+    $policyRequiresReboot = $false  # This policy does not require reboot
+    
+    if ($success -and $policyRequiresReboot) {
         $script:RebootRequired = $true
         Write-Log "Policy Ensure 'Accounts: Block Microsoft accounts' is set to 'Users can't add or log on with Microsoft accounts' requires system reboot" -Level WARNING
     }
@@ -601,7 +615,10 @@ try {
         -ValueType "REG_DWORD" \
         -PolicyName "Ensure 'Prevent enabling lock screen camera' is set to 'Enabled'"
     
-    if ($success -and false) {
+    # Set this per-policy depending on whether it actually needs a reboot
+    $policyRequiresReboot = $false  # This policy does not require reboot
+    
+    if ($success -and $policyRequiresReboot) {
         $script:RebootRequired = $true
         Write-Log "Policy Ensure 'Prevent enabling lock screen camera' is set to 'Enabled' requires system reboot" -Level WARNING
     }
@@ -690,12 +707,19 @@ try {
     
     Write-Host "Rolling back CIS policy changes..." -ForegroundColor Yellow
     
-    # Restore registry
-    if (Test-Path $manifest.RegistryBackup) {
-        Write-Host "Restoring registry..." -ForegroundColor Cyan
-        & reg.exe import $manifest.RegistryBackup
-        Write-Host "Registry restored successfully" -ForegroundColor Green
+    # Restore registry (handle both single file and array of files)
+    $registryBackups = $manifest.RegistryBackups
+    if ($null -eq $registryBackups) {
+        $registryBackups = @($manifest.RegistryBackup)  # Fallback for old format
     }
+    
+    foreach ($backupFile in $registryBackups) {
+        if (Test-Path $backupFile) {
+            Write-Host "Restoring registry from: $backupFile" -ForegroundColor Cyan
+            & reg.exe import $backupFile
+        }
+    }
+    Write-Host "Registry restored successfully" -ForegroundColor Green
     
     # Restore security settings
     if (Test-Path $manifest.SecurityBackup) {
