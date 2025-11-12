@@ -153,31 +153,177 @@ class PolicyPathResearcher:
                 error_message=error_msg
             )
     
+    def _get_category_specific_hint(self, policy_name_lower: str) -> str:
+        """Provide category-specific implementation hints based on policy name"""
+        
+        # Category 1: Password Policies
+        if any(kw in policy_name_lower for kw in ['password history', 'minimum password age', 'maximum password age', 
+                                                     'minimum password length', 'password complexity', 'reversible encryption']):
+            return """
+
+**CATEGORY: PASSWORD POLICY**
+- Implementation Method: secedit (Security Template) + net accounts
+- Registry: NOT APPLICABLE (use 'N/A' for all registry fields)
+- secedit_section: "[System Access]"
+- Common Settings: PasswordHistorySize, MinimumPasswordAge, MaximumPasswordAge, MinimumPasswordLength, PasswordComplexity
+- PowerShell Commands: Use `net accounts` commands (e.g., /uniquepw:24, /minpwage:1, /maxpwage:365, /minpwlen:14)
+- Verification: Use `net accounts` command and parse output
+- CRITICAL: Do NOT use HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System registry paths
+"""
+        
+        # Category 2: Account Lockout Policies
+        elif any(kw in policy_name_lower for kw in ['account lockout', 'lockout threshold', 'lockout duration', 
+                                                      'reset lockout counter', 'administrator account lockout']):
+            return """
+
+**CATEGORY: ACCOUNT LOCKOUT POLICY**
+- Implementation Method: secedit (Security Template) + net accounts
+- Registry: May use HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa for some settings
+- secedit_section: "[System Access]" or "[Security Options]"
+- Common Settings: LockoutBadCount, LockoutDuration, ResetLockoutCount, AllowAdministratorLockout
+- PowerShell Commands: Use `net accounts` (e.g., /lockoutthreshold:10, /lockoutduration:15, /lockoutreset:15)
+- Verification: Use `net accounts` or check registry value
+- Note: Administrator lockout requires KB5020282 patch
+"""
+        
+        # Category 3: User Rights Assignment (Privileges)
+        elif any(kw in policy_name_lower for kw in ['user right', 'privilege', 'log on', 'logon', 'shut down system',
+                                                      'access this computer', 'deny', 'impersonate', 'create token',
+                                                      'backup files', 'restore files', 'debug programs']):
+            return """
+
+**CATEGORY: USER RIGHTS ASSIGNMENT**
+- Implementation Method: secedit (Security Template) ONLY
+- Registry: NOT APPLICABLE (use 'N/A')
+- secedit_section: "[Privilege Rights]"
+- Common Settings: SeNetworkLogonRight, SeInteractiveLogonRight, SeRemoteShutdownPrivilege, SeDebugPrivilege, SeBackupPrivilege
+- Value Format: Comma-separated SIDs or well-known names (e.g., "*S-1-5-32-544,*S-1-5-32-545" or "Administrators,Users")
+- PowerShell: Use secedit.exe with INF file (ALWAYS use @' ... '@ single-quoted here-strings for $CHICAGO$)
+- Verification: Export security policy with `secedit /export` and check [Privilege Rights] section
+- CRITICAL: These are NOT registry-based
+"""
+        
+        # Category 4: Security Options (mixed implementations)
+        elif any(kw in policy_name_lower for kw in ['security option', 'interactive logon', 'network access', 
+                                                      'network security', 'microsoft network', 'accounts:', 'audit:',
+                                                      'devices:', 'domain controller:', 'domain member:']):
+            return """
+
+**CATEGORY: SECURITY OPTIONS**
+- Implementation Method: MIXED (Registry + secedit)
+- Registry: Often uses HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa or HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanWorkstation\\Parameters
+- secedit_section: "[Registry Values]" or "[Security Options]"
+- PowerShell: May combine registry + secedit methods
+- Verification: Check registry value or use secedit export
+- Examples:
+  * Interactive logon: HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System
+  * Network security: HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa
+  * SMB settings: HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters
+"""
+        
+        # Category 5: Audit Policies
+        elif any(kw in policy_name_lower for kw in ['audit', 'auditing', 'audit policy', 'failure', 'success']):
+            return """
+
+**CATEGORY: AUDIT POLICY**
+- Implementation Method: auditpol.exe (PRIMARY) or secedit
+- Registry: NOT APPLICABLE (use 'N/A')
+- secedit_section: "[Event Audit]" (legacy) or use auditpol for advanced audit
+- PowerShell Commands: Use `auditpol /set` commands (e.g., auditpol /set /subcategory:"Logon" /success:enable /failure:enable)
+- Verification: Use `auditpol /get` commands
+- Format: Enable both Success and Failure for most policies
+- CRITICAL: Advanced Audit Policies require auditpol, not secedit
+"""
+        
+        # Category 6: Windows Firewall
+        elif any(kw in policy_name_lower for kw in ['firewall', 'domain profile', 'private profile', 'public profile']):
+            return """
+
+**CATEGORY: WINDOWS FIREWALL**
+- Implementation Method: netsh advfirewall or PowerShell NetSecurity cmdlets
+- Registry: HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsFirewall (for GPO settings)
+- PowerShell Commands: 
+  * Use `Set-NetFirewallProfile` cmdlets (e.g., Set-NetFirewallProfile -Profile Domain -Enabled True)
+  * Or `netsh advfirewall set` commands
+- Verification: Use `Get-NetFirewallProfile` or `netsh advfirewall show allprofiles`
+- Profiles: Domain, Private, Public
+- Settings: Firewall state, inbound/outbound rules, logging
+"""
+        
+        # Category 7: Windows Defender / Microsoft Defender
+        elif any(kw in policy_name_lower for kw in ['defender', 'windows defender', 'antivirus', 'real-time protection',
+                                                      'exploit protection', 'attack surface reduction']):
+            return """
+
+**CATEGORY: WINDOWS DEFENDER / SECURITY**
+- Implementation Method: Registry (Primary) + PowerShell cmdlets
+- Registry: HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender
+- PowerShell Commands: 
+  * Use `Set-MpPreference` cmdlets (e.g., Set-MpPreference -DisableRealtimeMonitoring $false)
+  * Use `Set-ProcessMitigation` for exploit protection
+- Verification: Use `Get-MpPreference` or check registry
+- CRITICAL: Requires Windows Defender service to be running
+"""
+        
+        # Category 8: Remote Desktop / Terminal Services
+        elif any(kw in policy_name_lower for kw in ['remote desktop', 'terminal services', 'rdp', 'remote assistance']):
+            return """
+
+**CATEGORY: REMOTE DESKTOP SERVICES**
+- Implementation Method: Registry
+- Registry: 
+  * HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server
+  * HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\Terminal Services
+- PowerShell: Registry modification or WMI
+- Verification: Check registry values or use `Get-ItemProperty`
+- Settings: fDenyTSConnections, SecurityLayer, UserAuthentication, MinEncryptionLevel
+"""
+        
+        # Category 9: BitLocker Drive Encryption
+        elif any(kw in policy_name_lower for kw in ['bitlocker', 'drive encryption', 'encryption method']):
+            return """
+
+**CATEGORY: BITLOCKER DRIVE ENCRYPTION**
+- Implementation Method: Registry + manage-bde command
+- Registry: HKLM\\SOFTWARE\\Policies\\Microsoft\\FVE (Full Volume Encryption)
+- PowerShell Commands: Use `manage-bde` or `Enable-BitLocker` cmdlets
+- Verification: Use `Get-BitLockerVolume` or `manage-bde -status`
+- CRITICAL: Requires TPM hardware support
+"""
+        
+        # Category 10: AppLocker / Application Control
+        elif any(kw in policy_name_lower for kw in ['applocker', 'application control', 'software restriction']):
+            return """
+
+**CATEGORY: APPLOCKER / APPLICATION CONTROL**
+- Implementation Method: PowerShell AppLocker cmdlets + Group Policy
+- Registry: HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\SrpV2
+- PowerShell Commands: Use `Set-AppLockerPolicy`, `Get-AppLockerPolicy` cmdlets
+- Verification: Check AppLocker event logs or Get-AppLockerPolicy
+- CRITICAL: Requires Windows Enterprise/Education editions
+"""
+        
+        # Default: Generic guidance
+        return """
+
+**GENERAL POLICY IMPLEMENTATION**
+- Research the correct implementation method for this specific policy
+- Check if it requires registry, secedit, auditpol, or specialized cmdlets
+- Provide accurate registry paths with proper hive (HKLM or HKCU)
+- For secedit-based policies, specify the correct section name
+- Always provide working verification commands
+"""
+    
     def _create_research_prompt(self, policy: Dict[str, Any]) -> str:
-        """Create research prompt for Gemini API"""
+        """Create research prompt for Gemini API with category-specific guidance"""
         
         policy_name = policy.get('name', 'Unknown')
+        policy_lower = policy_name.lower()
         
-        # Check if this is a password/account policy that requires secedit
-        is_password_policy = any(keyword in policy_name.lower() for keyword in [
-            'password', 'account lockout', 'lockout', 'kerberos', 
-            'minimum age', 'maximum age', 'password history', 'password length',
-            'password complexity', 'reversible encryption'
-        ])
+        # Detect policy category and provide specific implementation guidance
+        category_hint = self._get_category_specific_hint(policy_lower)
         
-        secedit_hint = ""
-        if is_password_policy:
-            secedit_hint = """
-
-**IMPORTANT: This is a PASSWORD/ACCOUNT LOCKOUT policy**
-- These policies MUST be implemented via secedit (Security Template) or net accounts
-- DO NOT use registry paths like HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System
-- Use the correct secedit section and setting:
-  * Password policies: [System Access] section with settings like PasswordHistorySize, MinimumPasswordAge, MaximumPasswordAge, MinimumPasswordLength, etc.
-  * Account lockout: [System Access] section with LockoutBadCount, LockoutDuration, ResetLockoutCount
-- For registry fields, use "N/A" if not applicable
-- Focus on secedit_section and secedit_setting fields instead
-"""
+        secedit_hint = category_hint if category_hint else ""
         
         return f"""
 As a Windows security expert, research the implementation details for this CIS policy:
