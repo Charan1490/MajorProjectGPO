@@ -85,6 +85,7 @@ class CreatePackageRequest(BaseModel):
     policy_ids: Optional[List[str]] = None
     group_names: Optional[List[str]] = None
     tag_names: Optional[List[str]] = None
+    categories: Optional[List[str]] = None  # NEW: Select policies by category
     include_formats: Optional[List[str]] = None
     include_scripts: bool = True
     include_documentation: bool = True
@@ -1419,10 +1420,27 @@ async def create_deployment_package(request: CreatePackageRequest):
                             policy_dict['id'] = policy_dict['policy_id']
                         policies.append(policy_dict)
         
-        # If no specific filters, get all policies
-        if not policies:
+        # Priority 5: Get policies by categories
+        elif request.categories:
+            # Get policies that match the specified categories
+            for policy in dashboard_manager.policies_cache.values():
+                policy_category = policy.category if hasattr(policy, 'category') else policy.dict().get('category', '')
+                if policy_category in request.categories:
+                    policy_dict = policy.dict()
+                    # Map policy_id to id field
+                    if 'policy_id' in policy_dict:
+                        policy_dict['id'] = policy_dict['policy_id']
+                    policies.append(policy_dict)
+        
+        # Priority 6 (Fallback): Get all policies if no specific filter
+        else:
             all_policies = dashboard_manager.get_all_policies()
             policies = all_policies  # These are already dict objects
+        
+        # Debug logging
+        print(f"DEBUG: Dashboard policies count: {len(dashboard_manager.policies_cache)}")
+        print(f"DEBUG: Selected policies count: {len(policies)}")
+        print(f"DEBUG: Selection method - template: {request.template_id}, policy_ids: {request.policy_ids}, groups: {request.group_names}, tags: {request.tag_names}, categories: {request.categories}")
         
         # Map policy_id to id field expected by deployment manager
         for policy in policies:
@@ -3948,6 +3966,140 @@ async def get_advanced_policy_statistics():
         }
     except Exception as e:
         print(f"Error getting policy statistics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# UTILITY ENDPOINTS - FOR SETUP AND TROUBLESHOOTING
+# ============================================================================
+
+@app.post("/utilities/import-policies-to-dashboard")
+async def import_policies_to_dashboard():
+    """
+    Utility endpoint to import policies from test_output.json into dashboard
+    This populates the dashboard with policies so they can be used for deployment
+    """
+    try:
+        import json
+        
+        # Load policies from test_output.json
+        test_output_file = Path("test_output.json")
+        if not test_output_file.exists():
+            raise HTTPException(status_code=404, detail="test_output.json not found. Please run PDF parser first.")
+        
+        with open(test_output_file, 'r') as f:
+            policies_data = json.load(f)
+        
+        imported_count = 0
+        skipped_count = 0
+        
+        # Import each policy into dashboard
+        for policy_data in policies_data:
+            try:
+                # Create enhanced policy for dashboard
+                enhanced_policy = {
+                    "policy_id": policy_data.get("id", str(uuid.uuid4())),
+                    "name": policy_data.get("policy_name", "Unknown Policy"),
+                    "title": policy_data.get("policy_name", "Unknown Policy"),
+                    "description": policy_data.get("description", ""),
+                    "category": policy_data.get("category", "Uncategorized"),
+                    "subcategory": policy_data.get("subcategory", ""),
+                    "registry_path": policy_data.get("registry_path"),
+                    "gpo_path": policy_data.get("gpo_path"),
+                    "required_value": policy_data.get("required_value", ""),
+                    "current_value": None,
+                    "cis_level": policy_data.get("cis_level", 1),
+                    "rationale": policy_data.get("rationale", ""),
+                    "impact": policy_data.get("impact", ""),
+                    "references": policy_data.get("references", []),
+                    "page_number": policy_data.get("page_number"),
+                    "section_number": policy_data.get("section_number", ""),
+                    "status": "not_configured",
+                    "priority": "medium",
+                    "is_enabled": True,
+                    "group_ids": [],
+                    "tag_ids": [],
+                    "metadata": {
+                        "source": "pdf_parser",
+                        "raw_text": policy_data.get("raw_text", "")[:500]  # Limit size
+                    }
+                }
+                
+                # Try to assign to appropriate group based on category
+                category_lower = enhanced_policy["category"].lower()
+                for group in dashboard_manager.groups_cache.values():
+                    group_name_lower = group.name.lower()
+                    if (category_lower in group_name_lower or 
+                        group_name_lower in category_lower or
+                        ("security" in category_lower and "security" in group_name_lower)):
+                        enhanced_policy["group_ids"].append(group.group_id)
+                        break
+                
+                # Try to assign appropriate tags
+                if "password" in enhanced_policy["name"].lower():
+                    for tag in dashboard_manager.tags_cache.values():
+                        if tag.name == "Password Policy":
+                            enhanced_policy["tag_ids"].append(tag.tag_id)
+                            break
+                elif "firewall" in enhanced_policy["name"].lower():
+                    for tag in dashboard_manager.tags_cache.values():
+                        if tag.name == "Firewall":
+                            enhanced_policy["tag_ids"].append(tag.tag_id)
+                            break
+                elif enhanced_policy["cis_level"] == 1:
+                    for tag in dashboard_manager.tags_cache.values():
+                        if tag.name == "Critical":
+                            enhanced_policy["tag_ids"].append(tag.tag_id)
+                            break
+                
+                # Check if policy already exists
+                if enhanced_policy["policy_id"] not in dashboard_manager.policies_cache:
+                    # Create the policy using dashboard manager
+                    from models_dashboard import EnhancedPolicy
+                    policy_obj = EnhancedPolicy(**enhanced_policy)
+                    dashboard_manager.policies_cache[policy_obj.policy_id] = policy_obj
+                    imported_count += 1
+                else:
+                    skipped_count += 1
+                    
+            except Exception as e:
+                print(f"Error importing policy: {e}")
+                skipped_count += 1
+                continue
+        
+        # Save the updated dashboard data
+        dashboard_manager._save_all_data()
+        
+        # Update group policy counts
+        for group in dashboard_manager.groups_cache.values():
+            policy_count = sum(1 for p in dashboard_manager.policies_cache.values() if group.group_id in p.group_ids)
+            group.policy_ids = [p.policy_id for p in dashboard_manager.policies_cache.values() if group.group_id in p.group_ids]
+        
+        # Update tag usage counts
+        for tag in dashboard_manager.tags_cache.values():
+            tag.usage_count = sum(1 for p in dashboard_manager.policies_cache.values() if tag.tag_id in p.tag_ids)
+        
+        # Save again with updated counts
+        dashboard_manager._save_all_data()
+        
+        return {
+            "success": True,
+            "message": f"Successfully imported {imported_count} policies into dashboard",
+            "data": {
+                "imported": imported_count,
+                "skipped": skipped_count,
+                "total_policies": len(dashboard_manager.policies_cache),
+                "total_groups": len(dashboard_manager.groups_cache),
+                "total_tags": len(dashboard_manager.tags_cache)
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error importing policies: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
