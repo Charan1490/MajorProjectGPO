@@ -1,92 +1,92 @@
 {
-  "e5db65b7-9da1-4e67-8fcd-e0f483de0b3f": {
-    "tag_id": "e5db65b7-9da1-4e67-8fcd-e0f483de0b3f",
+  "1806cc63-c707-4e37-844f-1f153c153673": {
+    "tag_id": "1806cc63-c707-4e37-844f-1f153c153673",
     "name": "Critical",
     "description": "Critical security policies",
     "color": "#d32f2f",
-    "created_at": "2025-09-26 12:32:41.337007",
+    "created_at": "2025-11-11 23:09:25.621126",
     "created_by": "system",
     "usage_count": 0
   },
-  "1887cd4b-fd09-41fa-9dff-07ea9a221e06": {
-    "tag_id": "1887cd4b-fd09-41fa-9dff-07ea9a221e06",
+  "a584f4cc-1f40-4f95-9ba1-f91b65b8e924": {
+    "tag_id": "a584f4cc-1f40-4f95-9ba1-f91b65b8e924",
     "name": "Firewall",
     "description": "Firewall related policies",
     "color": "#ff5722",
-    "created_at": "2025-09-26 12:32:41.337026",
+    "created_at": "2025-11-11 23:09:25.621333",
     "created_by": "system",
-    "usage_count": 4
+    "usage_count": 0
   },
-  "55ea0ae2-5444-42f2-8434-118adb8fd591": {
-    "tag_id": "55ea0ae2-5444-42f2-8434-118adb8fd591",
+  "88a3ce67-2055-4df7-88d4-e93ccc839bd0": {
+    "tag_id": "88a3ce67-2055-4df7-88d4-e93ccc839bd0",
     "name": "Password Policy",
     "description": "Password and authentication policies",
     "color": "#673ab7",
-    "created_at": "2025-09-26 12:32:41.337032",
+    "created_at": "2025-11-11 23:09:25.621338",
     "created_by": "system",
-    "usage_count": 23
+    "usage_count": 0
   },
-  "40fc07c6-5c30-43d3-9cf8-97c66504e1a0": {
-    "tag_id": "40fc07c6-5c30-43d3-9cf8-97c66504e1a0",
+  "5549a9a7-9d27-4b9c-914e-a51aba75e976": {
+    "tag_id": "5549a9a7-9d27-4b9c-914e-a51aba75e976",
     "name": "User Rights",
     "description": "User rights and permissions",
     "color": "#3f51b5",
-    "created_at": "2025-09-26 12:32:41.337036",
+    "created_at": "2025-11-11 23:09:25.621343",
     "created_by": "system",
-    "usage_count": 144
+    "usage_count": 0
   },
-  "2d92e9af-d93f-4c45-bbb5-28cf04d9f9e7": {
-    "tag_id": "2d92e9af-d93f-4c45-bbb5-28cf04d9f9e7",
+  "4391edf5-5c25-40fd-a75a-9454a6bdea07": {
+    "tag_id": "4391edf5-5c25-40fd-a75a-9454a6bdea07",
     "name": "Audit Policy",
     "description": "System auditing policies",
     "color": "#2196f3",
-    "created_at": "2025-09-26 12:32:41.337039",
+    "created_at": "2025-11-11 23:09:25.621346",
     "created_by": "system",
-    "usage_count": 48
+    "usage_count": 0
   },
-  "d7fa9afc-e1ed-44d2-b57a-c2a67ff38b2b": {
-    "tag_id": "d7fa9afc-e1ed-44d2-b57a-c2a67ff38b2b",
+  "0870aa2e-2fcf-4f5c-bd17-9572d05ff600": {
+    "tag_id": "0870aa2e-2fcf-4f5c-bd17-9572d05ff600",
     "name": "Network Security",
     "description": "Network security configurations",
     "color": "#00bcd4",
-    "created_at": "2025-09-26 12:32:41.337042",
+    "created_at": "2025-11-11 23:09:25.621350",
     "created_by": "system",
-    "usage_count": 37
+    "usage_count": 0
   },
-  "f6ed9be6-28a7-4ec1-9d72-45e2d615dd5a": {
-    "tag_id": "f6ed9be6-28a7-4ec1-9d72-45e2d615dd5a",
+  "20085f12-5b0f-4d91-bbf3-81365f97a584": {
+    "tag_id": "20085f12-5b0f-4d91-bbf3-81365f97a584",
     "name": "System Services",
     "description": "Windows system services",
     "color": "#009688",
-    "created_at": "2025-09-26 12:32:41.337045",
+    "created_at": "2025-11-11 23:09:25.621353",
     "created_by": "system",
-    "usage_count": 63
+    "usage_count": 0
   },
-  "2286b96d-5d68-4706-ab8a-342480ff987e": {
-    "tag_id": "2286b96d-5d68-4706-ab8a-342480ff987e",
+  "9b806ad3-4c9c-4a31-a9de-e31c143134c2": {
+    "tag_id": "9b806ad3-4c9c-4a31-a9de-e31c143134c2",
     "name": "Registry Settings",
     "description": "Registry configuration policies",
     "color": "#4caf50",
-    "created_at": "2025-09-26 12:32:41.337048",
+    "created_at": "2025-11-11 23:09:25.621358",
     "created_by": "system",
-    "usage_count": 8
+    "usage_count": 0
   },
-  "07db7b26-8ef4-4b90-9313-bbbd1c0a7218": {
-    "tag_id": "07db7b26-8ef4-4b90-9313-bbbd1c0a7218",
+  "85376ff1-e648-41b0-88c2-57de07481ae0": {
+    "tag_id": "85376ff1-e648-41b0-88c2-57de07481ae0",
     "name": "Level 1",
     "description": "CIS Level 1 policies",
     "color": "#8bc34a",
-    "created_at": "2025-09-26 12:32:41.337052",
+    "created_at": "2025-11-11 23:09:25.621361",
     "created_by": "system",
-    "usage_count": 124
+    "usage_count": 0
   },
-  "f7d78329-967a-4eb8-af9e-cef7570ae0da": {
-    "tag_id": "f7d78329-967a-4eb8-af9e-cef7570ae0da",
+  "fc21d0b3-97b1-457c-84ff-476e534c8adb": {
+    "tag_id": "fc21d0b3-97b1-457c-84ff-476e534c8adb",
     "name": "Level 2",
     "description": "CIS Level 2 policies",
     "color": "#cddc39",
-    "created_at": "2025-09-26 12:32:41.337055",
+    "created_at": "2025-11-11 23:09:25.621364",
     "created_by": "system",
-    "usage_count": 34
+    "usage_count": 0
   }
 }

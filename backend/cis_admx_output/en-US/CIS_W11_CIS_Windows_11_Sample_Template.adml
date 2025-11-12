@@ -1,0 +1,105 @@
+<?xml version="1.0" ?>
+<policyDefinitionResources xmlns:xsd="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions" revision="1.0.0.0" schemaVersion="1.0">
+  <displayName>CIS Windows 11 Sample Template</displayName>
+  <description>Sample CIS benchmark policies for Windows 11</description>
+  <resources>
+    <stringTable>
+      <string id="CISBenchmark">CIS Benchmark Policies</string>
+      <string id="CISBenchmark_Help">CIS Security Benchmark compliance policies for Windows</string>
+      <string id="AccountPolicies">Account Policies</string>
+      <string id="AccountPolicies_Help">Password and account lockout policies</string>
+      <string id="LocalPolicies">Local Policies</string>
+      <string id="LocalPolicies_Help">Audit policies, user rights, and security options</string>
+      <string id="EventLog">Event Log</string>
+      <string id="EventLog_Help">Event log configuration policies</string>
+      <string id="RestrictedGroups">Restricted Groups</string>
+      <string id="RestrictedGroups_Help">Group membership restrictions</string>
+      <string id="SystemServices">System Services</string>
+      <string id="SystemServices_Help">Windows service configuration</string>
+      <string id="Registry">Registry</string>
+      <string id="Registry_Help">Direct registry-based policies</string>
+      <string id="FileSystem">File System</string>
+      <string id="FileSystem_Help">File and folder permission policies</string>
+      <string id="WindowsFirewall">Windows Firewall</string>
+      <string id="WindowsFirewall_Help">Windows Firewall configuration</string>
+      <string id="AdvancedAudit">Advanced Audit Policy</string>
+      <string id="AdvancedAudit_Help">Advanced audit policy configuration</string>
+      <string id="NetworkSecurity">Network Security</string>
+      <string id="NetworkSecurity_Help">Network security and communication policies</string>
+      <string id="InteractiveLo gon">Interactive Logon</string>
+      <string id="InteractiveLo gon_Help">Interactive logon policies</string>
+      <string id="MicrosoftDefender">Microsoft Defender</string>
+      <string id="MicrosoftDefender_Help">Microsoft Defender configuration</string>
+      <string id="CIS_W11_Page_171_2374_L1_Ensure_Interactive_logon_Machine_inactivity_limit_is">Page 171 2.3.7.4 (L1) Ensure 'Interactive logon: Machine inactivity limit' is</string>
+      <string id="CIS_W11_Page_171_2374_L1_Ensure_Interactive_logon_Machine_inactivity_limit_is_Help">Windows notices inactivity of a logon session, and if the amount of inactive time exceeds the inactivity limit, then the screen saver will run, locking the session. The recommended state for this setting is: 900 or fewer second(s), but not 0 . Note:  A value of 0 does not conform to the benchmark as it disables the machine inactivity limit.
+Rationale:
+If a user forgets to lock their computer when they walk away it's possible that a passerby will hijack it.
+Recommended Value: 900
+CIS Level: 1
+Registry: HKLM\SOFTWARE</string>
+      <string id="CIS_W11_Page_489_1843_L1_Ensure_Enable_Certificate_Padding_is_set_to_Enabled">Page 489 18.4.3 (L1) Ensure 'Enable Certificate Padding' is set to 'Enabled'</string>
+      <string id="CIS_W11_Page_489_1843_L1_Ensure_Enable_Certificate_Padding_is_set_to_Enabled_Help">This policy setting configures whether the WinVerifyTrust  function performs strict Windows Authenticode signature verification for Portable Executable files (PE files). If enabled, PE files will be considered &quot;unsigned&quot; if Windows identifies content in them that does not conform to the Authenticode specification . The recommended state for this setting is: Enabled .
+Rationale:
+A remote code execution vulnerability exists in the way that the WinVerifyTrust  function handles Windows Authenticode signature verification for portable executable (PE) files. For more information on this vulnerability, visit CVE-2013 -3900 - Security Update Guide - Microsoft - WinVerifyTrust Signature Validation Vulnerability .
+Recommended Value: Enabled
+CIS Level: 1
+Registry: HKLM\SOFTWARE</string>
+      <string id="CIS_W11_HKLMSYSTEMCurrentControlSet_ControlLsaLimitBlankPasswordUse">HKLM\SYSTEM\CurrentControlSet \Control\Lsa:LimitBlankPasswordUse</string>
+      <string id="CIS_W11_HKLMSYSTEMCurrentControlSet_ControlLsaLimitBlankPasswordUse_Help">
+Recommended Value: 1
+CIS Level: None
+Registry: HKLM\SYSTEM\CurrentControlSet</string>
+      <string id="CIS_W11_HKLMSYSTEMCurrentControlSet_ControlPrintProviders_LanMan_Print">HKLM\SYSTEM\CurrentControlSet \Control\Print\Providers \LanMan Print</string>
+      <string id="CIS_W11_HKLMSYSTEMCurrentControlSet_ControlPrintProviders_LanMan_Print_Help">
+Recommended Value: 1
+CIS Level: None
+Registry: HKLM\SYSTEM\CurrentControlSet</string>
+      <string id="CIS_W11_Windows_logon_screen_Enable_this_policy_setting_to_prevent_intruders_from_collecting">Windows logon screen. Enable this policy setting to prevent intruders from collecting</string>
+      <string id="CIS_W11_Windows_logon_screen_Enable_this_policy_setting_to_prevent_intruders_from_collecting_Help">This security setting determines the number of failed logon attempts that causes the machine to be locked out. Failed password attempts against workstations or member servers that have been locked using either CTRL+ALT+DELETE or password protected screen savers counts as failed logon attempts. The machine lockout policy is enforced only on those machines that have BitLocker enabled for protecting OS volumes. Please ensure that appropriate recovery password backup policies are enabled. The recommended state for this setting is: 10 or fewer invalid logon attempts, but not 0 . Note:  A value of 0 does not conform to the benchmark as it disables the machine account lockout threshold. Values from 1 to 3 will be interpreted as 4.
+Rationale:
+An attacker with access to the console (for example, someone with physical access or someone who is able to connect to the server through Remote Desktop Services) could view the name of the last user who logged on to the server. The attacker could then try to guess the password, use a dictionary, or use a brute -force attack to try and log on. If a machine is lost or stolen, or if an insider threat attempts a brute force password attack against the computer, it is important to ensure that BitLocker will lock the computer and therefore prevent a successful attack.
+Recommended Value: 10 or fewer invalid logon attempts, but not 0
+CIS Level: 2
+Registry: HKLM\SOFTWARE</string>
+      <string id="CIS_W11_HKLMSYSTEMCurrentControlSet_ControlSession">HKLM\SYSTEM\CurrentControlSet \Control\Session</string>
+      <string id="CIS_W11_HKLMSYSTEMCurrentControlSet_ControlSession_Help">This policy setting determines the strength of the default discretionary access control list (DACL) for objects. Active Directory maintains a global list of shared system resources, such as DOS device names, mutexes, and semaphores. In this way, objects can be located and shared among processes. Each type of object is created with a default DACL that specifies who can access the objects and what permissions are granted. The recommended state for this setting is: Enabled .
+Rationale:
+This setting determines the strength of the default DACL for objects. Windows maintains a global list of shared computer resources so that objects can be located and shared among processes. Each type of object is created with a default DACL that specifies who can access the objects and with what permissions.
+Recommended Value: 1
+CIS Level: 1
+Registry: HKLM\SYSTEM\CurrentControlSet</string>
+      <string id="CIS_W11_HKLMSYSTEMCurrentControlSet_ControlSession_ManagerProtectionMode">HKLM\SYSTEM\CurrentControlSet \Control\Session Manager:ProtectionMode</string>
+      <string id="CIS_W11_HKLMSYSTEMCurrentControlSet_ControlSession_ManagerProtectionMode_Help">
+Recommended Value: 1
+CIS Level: None
+Registry: HKLM\SYSTEM\CurrentControlSet</string>
+      <string id="CIS_W11_HKLMSYSTEMCurrentControlSet_Services_BTAGServiceStart">HKLM\SYSTEM\CurrentControlSet \Services \BTAGService:Start</string>
+      <string id="CIS_W11_HKLMSYSTEMCurrentControlSet_Services_BTAGServiceStart_Help">
+Recommended Value: 1
+CIS Level: None
+Registry: HKLM\SYSTEM\CurrentControlSet</string>
+      <string id="CIS_W11_HKLMSYSTEMCurrentControlSet_Services_bthservStart">HKLM\SYSTEM\CurrentControlSet \Services \bthserv:Start</string>
+      <string id="CIS_W11_HKLMSYSTEMCurrentControlSet_Services_bthservStart_Help">
+Recommended Value: 1
+CIS Level: None
+Registry: HKLM\SYSTEM\CurrentControlSet</string>
+      <string id="CIS_W11_HKLMSYSTEMCurrentControlSet_Services_BrowserStart">HKLM\SYSTEM\CurrentControlSet \Services \Browser:Start</string>
+      <string id="CIS_W11_HKLMSYSTEMCurrentControlSet_Services_BrowserStart_Help">
+Recommended Value: 1
+CIS Level: None
+Registry: HKLM\SYSTEM\CurrentControlSet</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="CIS_W11_Page_171_2374_L1_Ensure_Interactive_logon_Machine_inactivity_limit_is">
+        <decimalTextBox refId="CIS_W11_Page_171_2374_L1_Ensure_Interactive_logon_Machine_inactivity_limit_is_Decimal">
+          <label>Value:</label>
+        </decimalTextBox>
+      </presentation>
+      <presentation id="CIS_W11_Windows_logon_screen_Enable_this_policy_setting_to_prevent_intruders_from_collecting">
+        <listBox refId="CIS_W11_Windows_logon_screen_Enable_this_policy_setting_to_prevent_intruders_from_collecting_List">
+          <label>Values:</label>
+        </listBox>
+      </presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

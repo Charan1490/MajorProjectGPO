@@ -90,14 +90,26 @@ class DeploymentManager:
         """Save deployment packages to storage"""
         try:
             packages_file = self.storage_path / "deployment_packages.json"
+            
+            # Custom JSON encoder to handle datetime objects
+            class DateTimeEncoder(json.JSONEncoder):
+                def default(self, obj):
+                    if isinstance(obj, datetime):
+                        return obj.isoformat()
+                    if isinstance(obj, timedelta):
+                        return str(obj)
+                    return super().default(obj)
+            
             data = {
                 'packages': [self._serialize_package(pkg) for pkg in self.packages.values()],
                 'last_updated': datetime.now().isoformat()
             }
             with open(packages_file, 'w') as f:
-                json.dump(data, f, indent=2)
+                json.dump(data, f, indent=2, cls=DateTimeEncoder)
         except Exception as e:
             logger.error(f"Error saving deployment packages: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
     
     def _load_jobs(self):
         """Load active deployment jobs from storage"""
@@ -121,14 +133,26 @@ class DeploymentManager:
         """Save active deployment jobs to storage"""
         try:
             jobs_file = self.storage_path / "deployment_jobs.json"
+            
+            # Custom JSON encoder to handle datetime objects
+            class DateTimeEncoder(json.JSONEncoder):
+                def default(self, obj):
+                    if isinstance(obj, datetime):
+                        return obj.isoformat()
+                    if isinstance(obj, timedelta):
+                        return str(obj)
+                    return super().default(obj)
+            
             data = {
                 'jobs': [self._serialize_job(job) for job in self.active_jobs.values()],
                 'last_updated': datetime.now().isoformat()
             }
             with open(jobs_file, 'w') as f:
-                json.dump(data, f, indent=2)
+                json.dump(data, f, indent=2, cls=DateTimeEncoder)
         except Exception as e:
             logger.error(f"Error saving deployment jobs: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
     
     def _serialize_job(self, job: DeploymentJob) -> Dict[str, Any]:
         """Serialize deployment job for storage"""
@@ -861,9 +885,56 @@ class DeploymentManager:
         return scripts
     
     def _create_deployment_script(self, package: DeploymentPackage) -> DeploymentScript:
-        """Create main deployment PowerShell script"""
+        """Create main deployment PowerShell script using enhanced generator"""
         
-        script_content = f"""#Requires -RunAsAdministrator
+        # Use enhanced PowerShell generator if available
+        if self.enhanced_ps_generator and package.source_policies:
+            logger.info("Using enhanced PowerShell generator for deployment script")
+            
+            # Convert package source_policies to format expected by enhanced generator
+            policies = []
+            for policy in package.source_policies:
+                policy_data = {
+                    'id': policy.get('id', ''),
+                    'name': policy.get('name', ''),
+                    'description': policy.get('description', ''),
+                    'category': policy.get('category', ''),
+                    'setting': policy.get('setting', ''),
+                    'registry_settings': []
+                }
+                
+                # Extract registry settings if available
+                if 'registry_key' in policy:
+                    policy_data['registry_settings'].append({
+                        'hive': 'HKLM',  # Default to HKLM
+                        'key_path': policy.get('registry_key', ''),
+                        'value_name': policy.get('registry_value', ''),
+                        'value_type': policy.get('registry_type', 'REG_DWORD'),
+                        'value_data': policy.get('registry_data', '')
+                    })
+                
+                policies.append(policy_data)
+            
+            try:
+                script_content = self.enhanced_ps_generator.generate_deployment_script(
+                    policies=policies,
+                    target_os=package.target_os.value,
+                    include_backup=True,
+                    include_verification=True,
+                    include_rollback=True
+                )
+            except Exception as e:
+                logger.error(f"Enhanced generator failed: {e}, falling back to basic template")
+                script_content = None
+        
+        # If enhanced generator failed or not available, use basic template
+        if not script_content or not self.enhanced_ps_generator or not package.source_policies:
+            if not self.enhanced_ps_generator:
+                logger.warning("Enhanced generator not available, using basic template")
+            elif not package.source_policies:
+                logger.warning("No source policies available, using basic template")
+            
+            script_content = f"""#Requires -RunAsAdministrator
 
 <#
 .SYNOPSIS

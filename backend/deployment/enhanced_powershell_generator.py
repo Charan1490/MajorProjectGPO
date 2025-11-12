@@ -114,9 +114,6 @@ class EnhancedPowerShellGenerator:
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Mandatory=$false)]
-    [switch]$WhatIf,
-    
-    [Parameter(Mandatory=$false)]
     [switch]$CreateBackup = $true,
     
     [Parameter(Mandatory=$false)]
@@ -190,7 +187,7 @@ function Write-Log {
             }
             $logEntry | Out-File -FilePath $LogPath -Append -Encoding UTF8
         } catch {
-            Write-Warning "Failed to write to log file: $_"
+            Write-Warning "Failed to write to log file: $($_.Exception.Message)"
         }
     }
 }
@@ -292,7 +289,7 @@ function Set-RegistryValue {
         }
         
     } catch {
-        Write-Log "✗ Failed to apply $PolicyName - $_" -Level ERROR
+        Write-Log "✗ Failed to apply $PolicyName - $($_.Exception.Message)" -Level ERROR
         $script:FailureCount++
         return $false
     }
@@ -331,7 +328,7 @@ function Test-RegistryValue {
         }
         
     } catch {
-        Write-Log "✗ Error verifying $PolicyName: $_" -Level ERROR
+        Write-Log "✗ Error verifying ${PolicyName}: $($_.Exception.Message)" -Level ERROR
         return $false
     }
 }
@@ -398,7 +395,7 @@ Revision=1
         }
         
     } catch {
-        Write-Log "✗ Error applying security policy $PolicyName - $_" -Level ERROR
+        Write-Log "✗ Error applying security policy $PolicyName - $($_.Exception.Message)" -Level ERROR
         $script:FailureCount++
         return $false
     } finally {
@@ -484,30 +481,37 @@ function New-SystemBackup {
             
             # Create a combined registry export of all keys we'll modify
             $keysToBackup = @(
-                "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Netlogon\\Parameters",
-                "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
-                "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Personalization"
+                "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Netlogon\\Parameters",
+                "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+                "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\Personalization"
             )
             
+            # Safer registry backup loop - checks key existence
             $backupSuccess = $true
             $registryFiles = @()
             foreach ($key in $keysToBackup) {
-                $safeKeyName = ($key -replace '\\\\|:','_')
-                $keyFile = $registryBackup -replace '\\.reg$', "-$safeKeyName.reg"
-                $result = & reg.exe export $key $keyFile /y 2>&1
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Log "✓ Backed up: $key" -Level INFO -NoConsole
-                    $registryFiles += $keyFile
+                # Translate provider path to native registry path for reg.exe
+                $nativeKey = $key -replace '^HKLM:\\\\','HKLM\\' -replace '^HKEY_LOCAL_MACHINE:\\\\','HKLM\\'
+                if (Test-Path $key) {
+                    $safeKeyName = ($nativeKey -replace '[\\\\:]', '_').Trim('_')
+                    $keyFile = Join-Path $BackupPath ("Registry-Backup-$timestamp-$safeKeyName.reg")
+                    Write-Log "Exporting registry key: $nativeKey -> $keyFile" -Level INFO -NoConsole
+                    $result = & reg.exe export $nativeKey $keyFile /y 2>&1
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Log "✓ Backed up: $nativeKey" -Level INFO -NoConsole
+                        $registryFiles += $keyFile
+                    } else {
+                        Write-Log "⚠ Could not backup: $nativeKey (reg.exe returned $LASTEXITCODE). Output: $result" -Level WARNING -NoConsole
+                        $backupSuccess = $false
+                    }
                 } else {
-                    Write-Log "⚠ Could not backup: $key (may not exist yet or permission issue). reg.exe output: $result" -Level WARNING -NoConsole
-                    $backupSuccess = $false
+                    Write-Log "⚠ Registry key not found, skipping: $key" -Level WARNING -NoConsole
+                    # Not fatal — continue
                 }
             }
             
             if (-not $backupSuccess) {
-                Write-Log "✗ One or more registry key backups failed." -Level ERROR
-                # Decide: abort deployment or continue. To abort, uncomment next line:
-                # return $false
+                Write-Log "⚠ Some registry keys could not be backed up (may not exist yet)" -Level WARNING
                 # Continue anyway as keys may not exist yet (will be created by script)
             } else {
                 Write-Log "✓ Registry backup completed" -Level SUCCESS
@@ -536,7 +540,7 @@ function New-SystemBackup {
                     }
                 }
             } catch {
-                Write-Log "✗ Group Policy backup failed: $_" -Level ERROR
+                Write-Log "✗ Group Policy backup failed: $($_.Exception.Message)" -Level ERROR
             }
         }
         
@@ -551,7 +555,7 @@ function New-SystemBackup {
                     Write-Log "✗ Security settings backup failed" -Level ERROR
                 }
             } catch {
-                Write-Log "✗ Security settings backup error: $_" -Level ERROR
+                Write-Log "✗ Security settings backup error: $($_.Exception.Message)" -Level ERROR
             }
         }
         
@@ -576,7 +580,7 @@ function New-SystemBackup {
         return $true
         
     } catch {
-        Write-Log "✗ System backup failed: $_" -Level ERROR
+        Write-Log "✗ System backup failed: $($_.Exception.Message)" -Level ERROR
         return $false
     }
 }
@@ -620,6 +624,49 @@ if (-not (New-SystemBackup)) {
         
         return "\n".join(lines)
     
+    def _sanitize_powershell_comment(self, text: str) -> str:
+        """Sanitize text for PowerShell comments - remove problematic characters"""
+        if not text:
+            return ""
+        
+        # Remove markdown bold/italic markers
+        text = text.replace('**', '')
+        text = text.replace('__', '')
+        
+        # Split by newlines and prefix each line with #
+        lines = text.split('\n')
+        sanitized_lines = []
+        for line in lines:
+            line = line.strip()
+            if line:
+                # Escape backticks and dollar signs in comments
+                line = line.replace('`', "'")
+                line = line.replace('$', '\\$')
+                sanitized_lines.append(f"# {line}")
+        
+        return '\n'.join(sanitized_lines)
+    
+    def _fix_here_string_syntax(self, cmd: str) -> str:
+        """Fix double-quoted here-strings that contain $CHICAGO$ or similar tokens"""
+        if not cmd:
+            return cmd
+        
+        # Pattern to detect problematic double-quoted here-strings with $CHICAGO$ or similar
+        # Look for: $var = "@\n...$CHICAGO$...\n@"
+        import re
+        
+        # Fix pattern 1: $infContent = "@\n[Unicode]...$CHICAGO$...\n@"
+        # Convert to: $infContent = @'\n[Unicode]...$CHICAGO$...\n'@
+        if '"@' in cmd and '@"' in cmd and '$CHICAGO$' in cmd:
+            # Replace double-quoted here-string with single-quoted
+            cmd = cmd.replace('"@\n', '@\'\n')
+            cmd = cmd.replace('\n@"', '\n\'@')
+            # Remove escaping of dollar signs and quotes that was needed for double-quotes
+            cmd = cmd.replace('\\"$CHICAGO$\\"', '"$CHICAGO$"')
+            cmd = cmd.replace('\\$CHICAGO\\$', '$CHICAGO$')
+        
+        return cmd
+    
     def _generate_single_policy_implementation(self, policy_path: PolicyPath) -> List[str]:
         """Generate implementation for a single policy"""
         
@@ -632,21 +679,33 @@ if (-not (New-SystemBackup)) {
         ]
         
         if policy_path.remediation_notes:
-            lines.extend([
-                f"# Notes: {policy_path.remediation_notes}",
-                ""
-            ])
+            # Sanitize the notes to prevent PowerShell syntax errors
+            sanitized_notes = self._sanitize_powershell_comment(policy_path.remediation_notes)
+            if sanitized_notes:
+                lines.append(sanitized_notes)
+                lines.append("")
         
         # Registry-based implementation
-        if policy_path.registry_key and policy_path.registry_value_name:
+        # Skip if registry path contains N/A or is protected
+        registry_valid = (
+            policy_path.registry_key and 
+            policy_path.registry_value_name and 
+            policy_path.registry_key != "N/A" and
+            policy_path.registry_value_name != "N/A" and
+            policy_path.registry_value_type != "N/A" and
+            not policy_path.registry_path.startswith("HKLM:\\SECURITY\\Policy") and
+            not policy_path.registry_path.startswith("HKLM:\\SAM\\")
+        )
+        
+        if registry_valid:
             lines.extend([
                 f"Write-Log \"Applying policy: {policy_path.policy_name}\"",
                 f"try {{",
-                f"    $success = Set-RegistryValue \\",
-                f"        -RegistryPath \"{policy_path.registry_path}\" \\",
-                f"        -ValueName \"{policy_path.registry_value_name}\" \\",
-                f"        -ValueData {policy_path.enabled_value} \\",
-                f"        -ValueType \"{policy_path.registry_value_type}\" \\",
+                f"    $success = Set-RegistryValue `",
+                f"        -RegistryPath \"{policy_path.registry_path}\" `",
+                f"        -ValueName \"{policy_path.registry_value_name}\" `",
+                f"        -ValueData {policy_path.enabled_value} `",
+                f"        -ValueType \"{policy_path.registry_value_type}\" `",
                 f"        -PolicyName \"{policy_path.policy_name}\"",
                 f"    ",
                 f"    # Set this per-policy depending on whether it actually needs a reboot",
@@ -657,9 +716,16 @@ if (-not (New-SystemBackup)) {
                 f"        Write-Log \"Policy {policy_path.policy_name} requires system reboot\" -Level WARNING",
                 f"    }}",
                 f"}} catch {{",
-                f"    Write-Log \"Failed to apply {policy_path.policy_name}: $_\" -Level ERROR",
+                f"    Write-Log \"Failed to apply {policy_path.policy_name}: $($_.Exception.Message)\" -Level ERROR",
                 f"    $script:FailureCount++",
                 f"}}",
+                ""
+            ])
+        elif policy_path.registry_key and policy_path.registry_key != "N/A":
+            # Log that this policy uses secedit or other methods
+            lines.extend([
+                f"Write-Log \"Applying policy: {policy_path.policy_name}\"",
+                f"Write-Log \"Policy uses secedit/GPO method (registry path protected or N/A)\" -Level INFO",
                 ""
             ])
         
@@ -667,13 +733,13 @@ if (-not (New-SystemBackup)) {
         if policy_path.secedit_section and policy_path.secedit_setting:
             lines.extend([
                 f"try {{",
-                f"    Invoke-SecurityPolicy \\",
-                f"        -Section \"{policy_path.secedit_section}\" \\",
-                f"        -Setting \"{policy_path.secedit_setting}\" \\",
-                f"        -Value \"{policy_path.enabled_value}\" \\",
+                f"    Invoke-SecurityPolicy `",
+                f"        -Section \"{policy_path.secedit_section}\" `",
+                f"        -Setting \"{policy_path.secedit_setting}\" `",
+                f"        -Value \"{policy_path.enabled_value}\" `",
                 f"        -PolicyName \"{policy_path.policy_name}\"",
                 f"}} catch {{",
-                f"    Write-Log \"Failed to apply security policy {policy_path.policy_name}: $_\" -Level ERROR",
+                f"    Write-Log \"Failed to apply security policy {policy_path.policy_name}: $($_.Exception.Message)\" -Level ERROR",
                 f"}}",
                 ""
             ])
@@ -682,29 +748,48 @@ if (-not (New-SystemBackup)) {
         if policy_path.gpo_path and policy_path.gpo_setting:
             lines.extend([
                 f"try {{",
-                f"    Set-GroupPolicy \\",
-                f"        -Path \"{policy_path.gpo_path}\" \\",
-                f"        -Setting \"{policy_path.gpo_setting}\" \\",
-                f"        -Value \"{policy_path.enabled_value}\" \\",
+                f"    Set-GroupPolicy `",
+                f"        -Path \"{policy_path.gpo_path}\" `",
+                f"        -Setting \"{policy_path.gpo_setting}\" `",
+                f"        -Value \"{policy_path.enabled_value}\" `",
                 f"        -PolicyName \"{policy_path.policy_name}\"",
                 f"}} catch {{",
-                f"    Write-Log \"Failed to apply group policy {policy_path.policy_name}: $_\" -Level ERROR",
+                f"    Write-Log \"Failed to apply group policy {policy_path.policy_name}: $($_.Exception.Message)\" -Level ERROR",
                 f"}}",
                 ""
             ])
         
         # Custom PowerShell command
+        # Filter out Active Directory cmdlets (not available on standalone Windows 11 Pro)
         if policy_path.powershell_command:
-            lines.extend([
-                f"try {{",
-                f"    Write-Log \"Executing custom command for: {policy_path.policy_name}\"",
-                f"    {policy_path.powershell_command}",
-                f"    Write-Log \"✓ Custom command completed: {policy_path.policy_name}\" -Level SUCCESS",
-                f"}} catch {{",
-                f"    Write-Log \"✗ Custom command failed for {policy_path.policy_name}: $_\" -Level ERROR",
-                f"}}",
-                ""
-            ])
+            cmd = policy_path.powershell_command
+            
+            # Fix any double-quoted here-strings that might cause parsing errors
+            cmd = self._fix_here_string_syntax(cmd)
+            
+            ad_cmdlets = ['Set-ADDefaultDomainPasswordPolicy', 'Get-ADDefaultDomainPasswordPolicy', 
+                          'Set-ADUser', 'Get-ADUser', 'Set-ADGroup', 'Get-ADGroup']
+            
+            # Check if command contains AD cmdlets
+            has_ad_cmdlet = any(ad_cmd in cmd for ad_cmd in ad_cmdlets)
+            
+            if has_ad_cmdlet:
+                lines.extend([
+                    f"# Custom command skipped (requires Active Directory): {policy_path.policy_name}",
+                    f"Write-Log \"Skipping AD-specific command for: {policy_path.policy_name} (use secedit/GPO methods instead)\" -Level INFO",
+                    ""
+                ])
+            else:
+                lines.extend([
+                    f"try {{",
+                    f"    Write-Log \"Executing custom command for: {policy_path.policy_name}\"",
+                    f"    {cmd}",
+                    f"    Write-Log \"✓ Custom command completed: {policy_path.policy_name}\" -Level SUCCESS",
+                    f"}} catch {{",
+                    f"    Write-Log \"✗ Custom command failed for {policy_path.policy_name}: $($_.Exception.Message)\" -Level ERROR",
+                    f"}}",
+                    ""
+                ])
         
         return lines
     
@@ -735,6 +820,20 @@ if (-not (New-SystemBackup)) {
                 # Parse the command to add proper pass/fail counter increments
                 verification_cmd = policy_path.verification_command
                 
+                # Skip AD-specific verification commands
+                ad_cmdlets = ['Set-ADDefaultDomainPasswordPolicy', 'Get-ADDefaultDomainPasswordPolicy', 
+                              'Set-ADUser', 'Get-ADUser', 'Set-ADGroup', 'Get-ADGroup']
+                has_ad_cmdlet = any(ad_cmd in verification_cmd for ad_cmd in ad_cmdlets)
+                
+                if has_ad_cmdlet:
+                    lines.extend([
+                        f"    # Verify: {policy_path.policy_name}",
+                        f"    Write-Log \"Skipping AD-specific verification for: {policy_path.policy_name}\" -Level INFO",
+                        f"    # Use secedit /export or registry check instead",
+                        ""
+                    ])
+                    continue
+                
                 # If the command has Write-Log calls, we need to restructure it
                 if 'Write-Log' in verification_cmd:
                     # Split on semicolon to get the value retrieval and the if statement
@@ -750,7 +849,7 @@ if (-not (New-SystemBackup)) {
                             f"        {value_retrieval}",
                             f"        {condition_check.replace('{ Write-Log', '{ Write-Log').replace(' -Level SUCCESS }', ' -Level SUCCESS; $script:VerificationPassed++; }').replace(' -Level ERROR }', ' -Level ERROR; $script:VerificationFailed++; }')}",
                             f"    }} catch {{",
-                            f"        Write-Log \"Verification failed for {policy_path.policy_name}: $_\" -Level WARNING",
+                            f"        Write-Log \"Verification failed for {policy_path.policy_name}: $($_.Exception.Message)\" -Level WARNING",
                             f"        $script:VerificationFailed++",
                             f"    }}",
                             ""
@@ -763,7 +862,7 @@ if (-not (New-SystemBackup)) {
                             f"        {verification_cmd}",
                             f"        $script:VerificationPassed++",
                             f"    }} catch {{",
-                            f"        Write-Log \"Verification failed for {policy_path.policy_name}: $_\" -Level WARNING",
+                            f"        Write-Log \"Verification failed for {policy_path.policy_name}: $($_.Exception.Message)\" -Level WARNING",
                             f"        $script:VerificationFailed++",
                             f"    }}",
                             ""
@@ -775,7 +874,7 @@ if (-not (New-SystemBackup)) {
                         f"        {verification_cmd}",
                         f"        $script:VerificationPassed++",
                         f"    }} catch {{",
-                        f"        Write-Log \"Verification failed for {policy_path.policy_name}: $_\" -Level WARNING",
+                        f"        Write-Log \"Verification failed for {policy_path.policy_name}: $($_.Exception.Message)\" -Level WARNING",
                         f"        $script:VerificationFailed++",
                         f"    }}",
                         ""
@@ -783,10 +882,10 @@ if (-not (New-SystemBackup)) {
             elif policy_path.registry_key and policy_path.registry_value_name:
                 lines.extend([
                     f"    # Verify: {policy_path.policy_name}",
-                    f"    $verified = Test-RegistryValue \\",
-                    f"        -RegistryPath \"{policy_path.registry_path}\" \\",
-                    f"        -ValueName \"{policy_path.registry_value_name}\" \\",
-                    f"        -ExpectedValue {policy_path.enabled_value} \\",
+                    f"    $verified = Test-RegistryValue `",
+                    f"        -RegistryPath \"{policy_path.registry_path}\" `",
+                    f"        -ValueName \"{policy_path.registry_value_name}\" `",
+                    f"        -ExpectedValue {policy_path.enabled_value} `",
                     f"        -PolicyName \"{policy_path.policy_name}\"",
                     f"    ",
                     f"    if ($verified) {{",
@@ -863,7 +962,7 @@ try {
     Write-Host "System reboot recommended" -ForegroundColor Yellow
     
 } catch {
-    Write-Error "Rollback failed: $_"
+    Write-Error "Rollback failed: $($_.Exception.Message)"
     exit 1
 }
 '@

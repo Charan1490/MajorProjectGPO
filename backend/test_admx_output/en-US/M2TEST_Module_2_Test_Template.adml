@@ -1,0 +1,46 @@
+<?xml version="1.0" ?>
+<policyDefinitionResources xmlns:xsd="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions" revision="1.0.0.0" schemaVersion="1.0">
+  <displayName>Module 2 Test Template</displayName>
+  <description>Test template for Module 2 validation</description>
+  <resources>
+    <stringTable>
+      <string id="CISBenchmark">CIS Benchmark Policies</string>
+      <string id="CISBenchmark_Help">CIS Security Benchmark compliance policies for Windows</string>
+      <string id="AccountPolicies">Account Policies</string>
+      <string id="AccountPolicies_Help">Password and account lockout policies</string>
+      <string id="LocalPolicies">Local Policies</string>
+      <string id="LocalPolicies_Help">Audit policies, user rights, and security options</string>
+      <string id="EventLog">Event Log</string>
+      <string id="EventLog_Help">Event log configuration policies</string>
+      <string id="RestrictedGroups">Restricted Groups</string>
+      <string id="RestrictedGroups_Help">Group membership restrictions</string>
+      <string id="SystemServices">System Services</string>
+      <string id="SystemServices_Help">Windows service configuration</string>
+      <string id="Registry">Registry</string>
+      <string id="Registry_Help">Direct registry-based policies</string>
+      <string id="FileSystem">File System</string>
+      <string id="FileSystem_Help">File and folder permission policies</string>
+      <string id="WindowsFirewall">Windows Firewall</string>
+      <string id="WindowsFirewall_Help">Windows Firewall configuration</string>
+      <string id="AdvancedAudit">Advanced Audit Policy</string>
+      <string id="AdvancedAudit_Help">Advanced audit policy configuration</string>
+      <string id="NetworkSecurity">Network Security</string>
+      <string id="NetworkSecurity_Help">Network security and communication policies</string>
+      <string id="InteractiveLo gon">Interactive Logon</string>
+      <string id="InteractiveLo gon_Help">Interactive logon policies</string>
+      <string id="MicrosoftDefender">Microsoft Defender</string>
+      <string id="MicrosoftDefender_Help">Microsoft Defender configuration</string>
+      <string id="M2TEST_Sample_Policy_1_-_Registry_Based">Sample Policy 1 - Registry Based</string>
+      <string id="M2TEST_Sample_Policy_1_-_Registry_Based_Help">Test registry-based policy
+Recommended Value: 1
+CIS Level: 1
+Registry: HKLM\SOFTWARE\Test:Value1</string>
+      <string id="M2TEST_Sample_Policy_2_-_Security_Option">Sample Policy 2 - Security Option</string>
+      <string id="M2TEST_Sample_Policy_2_-_Security_Option_Help">Test security option policy
+Recommended Value: Enabled
+CIS Level: 1
+Registry: HKLM\SYSTEM\CurrentControlSet\Control\Lsa:TestValue</string>
+    </stringTable>
+    <presentationTable/>
+  </resources>
+</policyDefinitionResources>

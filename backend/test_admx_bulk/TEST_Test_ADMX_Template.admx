@@ -1,0 +1,70 @@
+<?xml version="1.0" ?>
+<policyDefinitions xmlns:xsd="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions" revision="1.0.0.0" schemaVersion="1.0">
+  <policyNamespaces>
+    <target prefix="TEST" namespace="TestNamespace.Policies"/>
+    <using prefix="windows" namespace="Microsoft.Policies.Windows"/>
+  </policyNamespaces>
+  <supersededAdm fileName="CISBenchmark.adm"/>
+  <resources minRequiredRevision="1.0"/>
+  <categories>
+    <category name="CISBenchmark" displayName="$(string.CISBenchmark)"/>
+    <category name="AccountPolicies" displayName="$(string.AccountPolicies)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="LocalPolicies" displayName="$(string.LocalPolicies)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="EventLog" displayName="$(string.EventLog)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="RestrictedGroups" displayName="$(string.RestrictedGroups)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="SystemServices" displayName="$(string.SystemServices)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="Registry" displayName="$(string.Registry)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="FileSystem" displayName="$(string.FileSystem)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="WindowsFirewall" displayName="$(string.WindowsFirewall)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="AdvancedAudit" displayName="$(string.AdvancedAudit)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="NetworkSecurity" displayName="$(string.NetworkSecurity)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="InteractiveLo gon" displayName="$(string.InteractiveLo gon)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="MicrosoftDefender" displayName="$(string.MicrosoftDefender)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+  </categories>
+  <policies>
+    <policy name="TEST_Test_Account_Lockout_Policy" class="Machine" displayName="$(string.TEST_Test_Account_Lockout_Policy)" explainText="$(string.TEST_Test_Account_Lockout_Policy_Help)" key="HKLM\Software\Policies\Microsoft\Windows\Lockout" presentation="$(presentation.TEST_Test_Account_Lockout_Policy)" valueName="Threshold">
+      <parentCategory ref="AccountPolicies"/>
+      <supportedOn ref="windows:SUPPORTED_Windows11"/>
+      <enabledValue>
+        <decimal value="1"/>
+      </enabledValue>
+      <disabledValue>
+        <decimal value="0"/>
+      </disabledValue>
+    </policy>
+    <policy name="TEST_Test_Password_Policy" class="Machine" displayName="$(string.TEST_Test_Password_Policy)" explainText="$(string.TEST_Test_Password_Policy_Help)" key="HKLM\System\CurrentControlSet\Control\Lsa" presentation="$(presentation.TEST_Test_Password_Policy)" valueName="PasswordComplexity">
+      <parentCategory ref="AccountPolicies"/>
+      <supportedOn ref="windows:SUPPORTED_Windows11"/>
+      <enabledValue>
+        <decimal value="1"/>
+      </enabledValue>
+      <disabledValue>
+        <decimal value="0"/>
+      </disabledValue>
+    </policy>
+  </policies>
+</policyDefinitions>

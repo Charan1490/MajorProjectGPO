@@ -1,0 +1,144 @@
+<?xml version="1.0" ?>
+<policyDefinitions xmlns:xsd="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions" revision="1.0.0.0" schemaVersion="1.0">
+  <policyNamespaces>
+    <target prefix="CIS_W11" namespace="CISWindows11.Policies"/>
+    <using prefix="windows" namespace="Microsoft.Policies.Windows"/>
+  </policyNamespaces>
+  <supersededAdm fileName="CISBenchmark.adm"/>
+  <resources minRequiredRevision="1.0"/>
+  <categories>
+    <category name="CISBenchmark" displayName="$(string.CISBenchmark)"/>
+    <category name="AccountPolicies" displayName="$(string.AccountPolicies)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="LocalPolicies" displayName="$(string.LocalPolicies)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="EventLog" displayName="$(string.EventLog)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="RestrictedGroups" displayName="$(string.RestrictedGroups)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="SystemServices" displayName="$(string.SystemServices)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="Registry" displayName="$(string.Registry)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="FileSystem" displayName="$(string.FileSystem)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="WindowsFirewall" displayName="$(string.WindowsFirewall)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="AdvancedAudit" displayName="$(string.AdvancedAudit)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="NetworkSecurity" displayName="$(string.NetworkSecurity)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="InteractiveLo gon" displayName="$(string.InteractiveLo gon)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+    <category name="MicrosoftDefender" displayName="$(string.MicrosoftDefender)">
+      <parentCategory ref="CISBenchmark"/>
+    </category>
+  </categories>
+  <policies>
+    <policy name="CIS_W11_Page_171_2374_L1_Ensure_Interactive_logon_Machine_inactivity_limit_is" class="Machine" displayName="$(string.CIS_W11_Page_171_2374_L1_Ensure_Interactive_logon_Machine_inactivity_limit_is)" explainText="$(string.CIS_W11_Page_171_2374_L1_Ensure_Interactive_logon_Machine_inactivity_limit_is_Help)" key="HKLM\SOFTWARE" presentation="$(presentation.CIS_W11_Page_171_2374_L1_Ensure_Interactive_logon_Machine_inactivity_limit_is)">
+      <parentCategory ref="AccountPolicies"/>
+      <supportedOn ref="windows:SUPPORTED_Windows11"/>
+      <elements>
+        <decimal id="CIS_W11_Page_171_2374_L1_Ensure_Interactive_logon_Machine_inactivity_limit_is_Decimal" valueName="Value" minValue="0" maxValue="999999" defaultValue="900"/>
+      </elements>
+    </policy>
+    <policy name="CIS_W11_Page_489_1843_L1_Ensure_Enable_Certificate_Padding_is_set_to_Enabled" class="Machine" displayName="$(string.CIS_W11_Page_489_1843_L1_Ensure_Enable_Certificate_Padding_is_set_to_Enabled)" explainText="$(string.CIS_W11_Page_489_1843_L1_Ensure_Enable_Certificate_Padding_is_set_to_Enabled_Help)" key="HKLM\SOFTWARE" presentation="$(presentation.CIS_W11_Page_489_1843_L1_Ensure_Enable_Certificate_Padding_is_set_to_Enabled)">
+      <parentCategory ref="NetworkSecurity"/>
+      <supportedOn ref="windows:SUPPORTED_Windows11"/>
+      <enabledValue>
+        <decimal value="1"/>
+      </enabledValue>
+      <disabledValue>
+        <decimal value="0"/>
+      </disabledValue>
+    </policy>
+    <policy name="CIS_W11_HKLMSYSTEMCurrentControlSet_ControlLsaLimitBlankPasswordUse" class="Machine" displayName="$(string.CIS_W11_HKLMSYSTEMCurrentControlSet_ControlLsaLimitBlankPasswordUse)" explainText="$(string.CIS_W11_HKLMSYSTEMCurrentControlSet_ControlLsaLimitBlankPasswordUse_Help)" key="HKLM\SYSTEM\CurrentControlSet" presentation="$(presentation.CIS_W11_HKLMSYSTEMCurrentControlSet_ControlLsaLimitBlankPasswordUse)">
+      <parentCategory ref="AccountPolicies"/>
+      <supportedOn ref="windows:SUPPORTED_Windows11"/>
+      <enabledValue>
+        <decimal value="1"/>
+      </enabledValue>
+      <disabledValue>
+        <decimal value="0"/>
+      </disabledValue>
+    </policy>
+    <policy name="CIS_W11_HKLMSYSTEMCurrentControlSet_ControlPrintProviders_LanMan_Print" class="Machine" displayName="$(string.CIS_W11_HKLMSYSTEMCurrentControlSet_ControlPrintProviders_LanMan_Print)" explainText="$(string.CIS_W11_HKLMSYSTEMCurrentControlSet_ControlPrintProviders_LanMan_Print_Help)" key="HKLM\SYSTEM\CurrentControlSet" presentation="$(presentation.CIS_W11_HKLMSYSTEMCurrentControlSet_ControlPrintProviders_LanMan_Print)">
+      <parentCategory ref="AccountPolicies"/>
+      <supportedOn ref="windows:SUPPORTED_Windows11"/>
+      <enabledValue>
+        <decimal value="1"/>
+      </enabledValue>
+      <disabledValue>
+        <decimal value="0"/>
+      </disabledValue>
+    </policy>
+    <policy name="CIS_W11_Windows_logon_screen_Enable_this_policy_setting_to_prevent_intruders_from_collecting" class="Machine" displayName="$(string.CIS_W11_Windows_logon_screen_Enable_this_policy_setting_to_prevent_intruders_from_collecting)" explainText="$(string.CIS_W11_Windows_logon_screen_Enable_this_policy_setting_to_prevent_intruders_from_collecting_Help)" key="HKLM\SOFTWARE" presentation="$(presentation.CIS_W11_Windows_logon_screen_Enable_this_policy_setting_to_prevent_intruders_from_collecting)">
+      <parentCategory ref="AccountPolicies"/>
+      <supportedOn ref="windows:SUPPORTED_Windows11"/>
+      <elements>
+        <multiText id="CIS_W11_Windows_logon_screen_Enable_this_policy_setting_to_prevent_intruders_from_collecting_List" valueName="Values" maxLength="1024"/>
+      </elements>
+    </policy>
+    <policy name="CIS_W11_HKLMSYSTEMCurrentControlSet_ControlSession" class="Machine" displayName="$(string.CIS_W11_HKLMSYSTEMCurrentControlSet_ControlSession)" explainText="$(string.CIS_W11_HKLMSYSTEMCurrentControlSet_ControlSession_Help)" key="HKLM\SYSTEM\CurrentControlSet" presentation="$(presentation.CIS_W11_HKLMSYSTEMCurrentControlSet_ControlSession)">
+      <parentCategory ref="Registry"/>
+      <supportedOn ref="windows:SUPPORTED_Windows11"/>
+      <enabledValue>
+        <decimal value="1"/>
+      </enabledValue>
+      <disabledValue>
+        <decimal value="0"/>
+      </disabledValue>
+    </policy>
+    <policy name="CIS_W11_HKLMSYSTEMCurrentControlSet_ControlSession_ManagerProtectionMode" class="Machine" displayName="$(string.CIS_W11_HKLMSYSTEMCurrentControlSet_ControlSession_ManagerProtectionMode)" explainText="$(string.CIS_W11_HKLMSYSTEMCurrentControlSet_ControlSession_ManagerProtectionMode_Help)" key="HKLM\SYSTEM\CurrentControlSet" presentation="$(presentation.CIS_W11_HKLMSYSTEMCurrentControlSet_ControlSession_ManagerProtectionMode)">
+      <parentCategory ref="Registry"/>
+      <supportedOn ref="windows:SUPPORTED_Windows11"/>
+      <enabledValue>
+        <decimal value="1"/>
+      </enabledValue>
+      <disabledValue>
+        <decimal value="0"/>
+      </disabledValue>
+    </policy>
+    <policy name="CIS_W11_HKLMSYSTEMCurrentControlSet_Services_BTAGServiceStart" class="Machine" displayName="$(string.CIS_W11_HKLMSYSTEMCurrentControlSet_Services_BTAGServiceStart)" explainText="$(string.CIS_W11_HKLMSYSTEMCurrentControlSet_Services_BTAGServiceStart_Help)" key="HKLM\SYSTEM\CurrentControlSet" presentation="$(presentation.CIS_W11_HKLMSYSTEMCurrentControlSet_Services_BTAGServiceStart)">
+      <parentCategory ref="SystemServices"/>
+      <supportedOn ref="windows:SUPPORTED_Windows11"/>
+      <enabledValue>
+        <decimal value="1"/>
+      </enabledValue>
+      <disabledValue>
+        <decimal value="0"/>
+      </disabledValue>
+    </policy>
+    <policy name="CIS_W11_HKLMSYSTEMCurrentControlSet_Services_bthservStart" class="Machine" displayName="$(string.CIS_W11_HKLMSYSTEMCurrentControlSet_Services_bthservStart)" explainText="$(string.CIS_W11_HKLMSYSTEMCurrentControlSet_Services_bthservStart_Help)" key="HKLM\SYSTEM\CurrentControlSet" presentation="$(presentation.CIS_W11_HKLMSYSTEMCurrentControlSet_Services_bthservStart)">
+      <parentCategory ref="SystemServices"/>
+      <supportedOn ref="windows:SUPPORTED_Windows11"/>
+      <enabledValue>
+        <decimal value="1"/>
+      </enabledValue>
+      <disabledValue>
+        <decimal value="0"/>
+      </disabledValue>
+    </policy>
+    <policy name="CIS_W11_HKLMSYSTEMCurrentControlSet_Services_BrowserStart" class="Machine" displayName="$(string.CIS_W11_HKLMSYSTEMCurrentControlSet_Services_BrowserStart)" explainText="$(string.CIS_W11_HKLMSYSTEMCurrentControlSet_Services_BrowserStart_Help)" key="HKLM\SYSTEM\CurrentControlSet" presentation="$(presentation.CIS_W11_HKLMSYSTEMCurrentControlSet_Services_BrowserStart)">
+      <parentCategory ref="SystemServices"/>
+      <supportedOn ref="windows:SUPPORTED_Windows11"/>
+      <enabledValue>
+        <decimal value="1"/>
+      </enabledValue>
+      <disabledValue>
+        <decimal value="0"/>
+      </disabledValue>
+    </policy>
+  </policies>
+</policyDefinitions>

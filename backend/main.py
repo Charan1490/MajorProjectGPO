@@ -13,6 +13,13 @@ from datetime import datetime
 import uuid
 import aiofiles
 from typing import Dict, List, Optional, Any
+from dotenv import load_dotenv
+from pathlib import Path
+
+# Load environment variables from .env file
+# Use explicit path to ensure .env is found regardless of working directory
+env_path = Path(__file__).parent / '.env'
+load_dotenv(dotenv_path=env_path)
 
 from pdf_parser import extract_policies_from_pdf
 from models import PolicyExtractionResponse, PolicyItem, ExtractionStatus
@@ -74,6 +81,7 @@ class CreatePackageRequest(BaseModel):
     name: str
     description: str
     target_os: str
+    template_id: Optional[str] = None  # NEW: Select policies from a template
     policy_ids: Optional[List[str]] = None
     group_names: Optional[List[str]] = None
     tag_names: Optional[List[str]] = None
@@ -649,8 +657,15 @@ async def get_all_templates():
     """Get all templates"""
     try:
         templates = template_manager.get_all_templates()
+        # Add policy_count to each template
+        templates_with_count = []
+        for template in templates:
+            template_dict = template.dict()
+            template_dict['policy_count'] = len(template.policy_ids)
+            templates_with_count.append(template_dict)
+        
         return {
-            "templates": [template.dict() for template in templates],
+            "templates": templates_with_count,
             "total_count": len(templates)
         }
     except Exception as e:
@@ -1337,8 +1352,23 @@ async def create_deployment_package(request: CreatePackageRequest):
         # Get policies from dashboard based on filters
         policies = []
         
+        # NEW: Get policies from a template
+        if request.template_id:
+            try:
+                template_export = template_manager.get_template_with_policies(request.template_id)
+                if template_export and template_export.policies:
+                    # Convert template policies to dashboard format
+                    for template_policy in template_export.policies:
+                        policy_dict = template_policy.dict()
+                        # Map policy_id to id field
+                        if 'policy_id' in policy_dict:
+                            policy_dict['id'] = policy_dict['policy_id']
+                        policies.append(policy_dict)
+            except Exception as e:
+                raise HTTPException(status_code=404, detail=f"Template not found or error loading template: {str(e)}")
+        
         # Get specific policies by ID
-        if request.policy_ids:
+        elif request.policy_ids:
             for policy_id in request.policy_ids:
                 if policy_id in dashboard_manager.policies_cache:
                     policy = dashboard_manager.policies_cache[policy_id]

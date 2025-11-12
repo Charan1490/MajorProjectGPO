@@ -9,7 +9,7 @@ import re
 import logging
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
-import google.generativeai as genai
+from google import genai
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -53,9 +53,12 @@ class PolicyPathResearcher:
         self.api_key = api_key or os.getenv('GEMINI_API_KEY')
         if not self.api_key:
             logger.warning("No Gemini API key provided. Using fallback database only.")
+            self.client = None
         else:
-            genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-pro')
+            # Use the new Google GenAI SDK client
+            self.client = genai.Client(api_key=self.api_key)
+            # Use gemini-2.5-flash which is the latest stable model
+            self.model_name = 'gemini-2.5-flash'
         
         # Load existing policy database
         self.policy_database = self._load_policy_database()
@@ -103,7 +106,7 @@ class PolicyPathResearcher:
             )
         
         # Research using Gemini API
-        if self.api_key:
+        if self.client:
             result = self._research_with_gemini(policy)
             if result.success:
                 # Save to database
@@ -115,12 +118,16 @@ class PolicyPathResearcher:
         return self._research_with_heuristics(policy)
     
     def _research_with_gemini(self, policy: Dict[str, Any]) -> PolicyResearchResult:
-        """Research policy path using Gemini API"""
+        """Research policy path using Gemini API with fallback"""
         
         try:
             prompt = self._create_research_prompt(policy)
             
-            response = self.model.generate_content(prompt)
+            # Use the new Google GenAI SDK API
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt
+            )
             
             if response.text:
                 return self._parse_gemini_response(policy, response.text)
@@ -132,39 +139,70 @@ class PolicyPathResearcher:
                 )
                 
         except Exception as e:
-            logger.error(f"Error with Gemini API: {e}")
+            error_msg = str(e)
+            logger.error(f"Error with Gemini API: {error_msg}")
+            
+            # If API is overloaded (503) or rate limited, use heuristics as fallback
+            if '503' in error_msg or 'overloaded' in error_msg.lower() or 'rate' in error_msg.lower():
+                logger.warning(f"API overloaded/rate limited, using heuristics fallback for {policy.get('id', 'unknown')}")
+                return self._research_with_heuristics(policy)
+            
             return PolicyResearchResult(
                 success=False,
                 policy_path=None,
-                error_message=str(e)
+                error_message=error_msg
             )
     
     def _create_research_prompt(self, policy: Dict[str, Any]) -> str:
         """Create research prompt for Gemini API"""
         
+        policy_name = policy.get('name', 'Unknown')
+        
+        # Check if this is a password/account policy that requires secedit
+        is_password_policy = any(keyword in policy_name.lower() for keyword in [
+            'password', 'account lockout', 'lockout', 'kerberos', 
+            'minimum age', 'maximum age', 'password history', 'password length',
+            'password complexity', 'reversible encryption'
+        ])
+        
+        secedit_hint = ""
+        if is_password_policy:
+            secedit_hint = """
+
+**IMPORTANT: This is a PASSWORD/ACCOUNT LOCKOUT policy**
+- These policies MUST be implemented via secedit (Security Template) or net accounts
+- DO NOT use registry paths like HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System
+- Use the correct secedit section and setting:
+  * Password policies: [System Access] section with settings like PasswordHistorySize, MinimumPasswordAge, MaximumPasswordAge, MinimumPasswordLength, etc.
+  * Account lockout: [System Access] section with LockoutBadCount, LockoutDuration, ResetLockoutCount
+- For registry fields, use "N/A" if not applicable
+- Focus on secedit_section and secedit_setting fields instead
+"""
+        
         return f"""
 As a Windows security expert, research the implementation details for this CIS policy:
 
 Policy ID: {policy.get('id', 'Unknown')}
-Policy Name: {policy.get('name', 'Unknown')}
+Policy Name: {policy_name}
 Description: {policy.get('description', 'No description')}
 Category: {policy.get('category', 'Unknown')}
 CIS Level: {policy.get('cis_level', 'Unknown')}
+{secedit_hint}
 
 Please provide the following information in JSON format:
 
 {{
-    "registry_hive": "HKLM or HKCU",
-    "registry_key": "Full registry key path",
-    "registry_value_name": "Registry value name",
-    "registry_value_type": "REG_DWORD, REG_SZ, REG_BINARY, etc.",
-    "enabled_value": "Value when policy is enabled",
+    "registry_hive": "HKLM or HKCU (use 'N/A' if not registry-based)",
+    "registry_key": "Full registry key path (use 'N/A' if secedit-based)",
+    "registry_value_name": "Registry value name (use 'N/A' if secedit-based)",
+    "registry_value_type": "REG_DWORD, REG_SZ, REG_BINARY, etc. (use 'N/A' if secedit-based)",
+    "enabled_value": "Value when policy is enabled (e.g., '24' for password history)",
     "disabled_value": "Value when policy is disabled",
     "gpo_path": "Group Policy path if applicable",
     "gpo_setting": "GPO setting name",
-    "secedit_section": "Security template section if applicable",
-    "secedit_setting": "Security template setting",
-    "powershell_command": "PowerShell command to apply this policy",
+    "secedit_section": "Security template section (e.g., 'System Access', '[Account Lockout]')",
+    "secedit_setting": "Security template setting (e.g., 'PasswordHistorySize', 'MinimumPasswordAge')",
+    "powershell_command": "PowerShell command to apply this policy (e.g., 'net accounts /uniquepw:24')",
     "verification_command": "PowerShell command to verify the policy",
     "remediation_notes": "Important notes for remediation",
     "requires_reboot": true/false,
@@ -172,15 +210,36 @@ Please provide the following information in JSON format:
     "confidence_score": 0.0-1.0
 }}
 
-Focus on:
-1. Exact Windows registry paths and values
-2. Group Policy Administrative Templates path
-3. Security Policy (secedit) settings if applicable
-4. PowerShell implementation commands
-5. Verification methods
-6. Any special considerations or risks
+**Implementation Priority**:
+1. For Password/Account policies: Use secedit_section + secedit_setting (PRIMARY METHOD)
+2. For Registry-based policies: Use registry_hive + registry_key + registry_value_name
+3. For Group Policy: Use gpo_path + gpo_setting
+4. Always provide powershell_command and verification_command
 
-Provide accurate, tested information for Windows 10/11 systems.
+**Common secedit settings**:
+- Password policies: PasswordHistorySize, MinimumPasswordAge, MaximumPasswordAge, MinimumPasswordLength, PasswordComplexity
+- Account lockout: LockoutBadCount, ResetLockoutCount, LockoutDuration
+- Section: [System Access] for password and lockout policies
+
+**CRITICAL PowerShell Syntax Rules for powershell_command**:
+When generating PowerShell commands that create .inf files or use here-strings:
+- ALWAYS use SINGLE-QUOTED here-strings: @' ... '@ (NOT @" ... "@)
+- Single quotes prevent variable interpolation and keep $CHICAGO$ as literal text
+- Example CORRECT syntax:
+  $infContent = @'
+  [Unicode]
+  Unicode=yes
+  [Version]
+  signature="$CHICAGO$"
+  '@
+- Example WRONG syntax (causes parse errors):
+  $infContent = "@
+  signature=\\"$CHICAGO$\\"
+  @"
+- Use proper indentation (4 spaces) inside try/catch blocks
+- Add comments to explain what the code does
+
+Provide accurate, tested information for Windows 10/11 standalone systems.
 """
     
     def _parse_gemini_response(self, policy: Dict[str, Any], response_text: str) -> PolicyResearchResult:
@@ -247,18 +306,75 @@ Provide accurate, tested information for Windows 10/11 systems.
         policy_name = policy.get('name', '').lower()
         category = policy.get('category', '').lower()
         
-        # Common CIS policy patterns
+        # Check if this is a password/account policy (requires secedit, not registry)
+        password_policy_keywords = ['password history', 'minimum password age', 'maximum password age', 
+                                    'minimum password length', 'password complexity', 'reversible encryption',
+                                    'account lockout', 'lockout threshold', 'lockout duration', 'reset account lockout']
+        
+        is_password_policy = any(keyword in policy_name for keyword in password_policy_keywords)
+        
+        # Password policy mappings (secedit-based)
+        if is_password_policy:
+            secedit_mappings = {
+                'password history': {'section': 'System Access', 'setting': 'PasswordHistorySize', 'value': '24'},
+                'minimum password age': {'section': 'System Access', 'setting': 'MinimumPasswordAge', 'value': '1'},
+                'maximum password age': {'section': 'System Access', 'setting': 'MaximumPasswordAge', 'value': '365'},
+                'minimum password length': {'section': 'System Access', 'setting': 'MinimumPasswordLength', 'value': '14'},
+                'password complexity': {'section': 'System Access', 'setting': 'PasswordComplexity', 'value': '1'},
+                'reversible encryption': {'section': 'System Access', 'setting': 'ClearTextPassword', 'value': '0'},
+                'account lockout': {'section': 'System Access', 'setting': 'LockoutBadCount', 'value': '10'},
+                'lockout threshold': {'section': 'System Access', 'setting': 'LockoutBadCount', 'value': '10'},
+                'lockout duration': {'section': 'System Access', 'setting': 'LockoutDuration', 'value': '15'},
+                'reset account lockout': {'section': 'System Access', 'setting': 'ResetLockoutCount', 'value': '15'}
+            }
+            
+            # Find best match
+            secedit_config = None
+            for keyword, config in secedit_mappings.items():
+                if keyword in policy_name:
+                    secedit_config = config
+                    break
+            
+            if secedit_config:
+                # Return secedit-based policy (no registry)
+                policy_path = PolicyPath(
+                    policy_id=policy.get('id', ''),
+                    policy_name=policy.get('name', ''),
+                    registry_path='N/A',
+                    registry_hive='N/A',
+                    registry_key='N/A',
+                    registry_value_name='N/A',
+                    registry_value_type='N/A',
+                    enabled_value=secedit_config['value'],
+                    disabled_value='0',
+                    secedit_section=secedit_config['section'],
+                    secedit_setting=secedit_config['setting'],
+                    powershell_command=self._generate_password_policy_command(secedit_config),
+                    verification_command=f"net accounts",
+                    remediation_notes=f"This password policy must be set via secedit or net accounts command. Registry modification is not supported.",
+                    requires_reboot=False,
+                    risk_level='Medium'
+                )
+                
+                return PolicyResearchResult(
+                    success=True,
+                    policy_path=policy_path,
+                    error_message=None,
+                    confidence_score=0.7
+                )
+        
+        # Common CIS policy patterns (registry-based)
         registry_mappings = {
-            # Account Policies
+            # Account Policies (non-password/lockout)
             'password': {
-                'hive': 'HKLM',
-                'key': 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System',
-                'type': 'REG_DWORD'
+                'hive': 'N/A',
+                'key': 'N/A',
+                'type': 'N/A'
             },
             'lockout': {
-                'hive': 'HKLM', 
-                'key': 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System',
-                'type': 'REG_DWORD'
+                'hive': 'N/A', 
+                'key': 'N/A',
+                'type': 'N/A'
             },
             # Local Policies
             'audit': {
@@ -323,6 +439,24 @@ Provide accurate, tested information for Windows 10/11 systems.
             sources=["Heuristic Analysis"]
         )
     
+    def _generate_password_policy_command(self, config: Dict[str, str]) -> str:
+        """Generate PowerShell command for password policy"""
+        setting = config['setting']
+        value = config['value']
+        
+        # Map secedit settings to net accounts parameters
+        net_accounts_map = {
+            'PasswordHistorySize': f'net accounts /uniquepw:{value}',
+            'MinimumPasswordAge': f'net accounts /minpwage:{value}',
+            'MaximumPasswordAge': f'net accounts /maxpwage:{value}',
+            'MinimumPasswordLength': f'net accounts /minpwlen:{value}',
+            'LockoutBadCount': f'net accounts /lockoutthreshold:{value}',
+            'LockoutDuration': f'net accounts /lockoutduration:{value}',
+            'ResetLockoutCount': f'net accounts /lockoutwindow:{value}'
+        }
+        
+        return net_accounts_map.get(setting, f'# Manual secedit required for {setting}')
+    
     def _generate_value_name(self, policy: Dict[str, Any]) -> str:
         """Generate registry value name from policy information"""
         
@@ -339,16 +473,46 @@ Provide accurate, tested information for Windows 10/11 systems.
         return value_name or "Policy_Setting"
     
     def research_bulk_policies(self, policies: List[Dict[str, Any]]) -> Dict[str, PolicyResearchResult]:
-        """Research multiple policies in bulk"""
+        """Research multiple policies in bulk with rate limiting"""
+        
+        import time
         
         results = {}
+        api_calls_made = 0
+        max_api_calls = 10  # Limit API calls to avoid overload
         
         for i, policy in enumerate(policies):
             policy_id = policy.get('id', f'policy_{i}')
             logger.info(f"Researching policy {i+1}/{len(policies)}: {policy_id}")
             
             try:
-                result = self.research_policy_path(policy)
+                # Check database first (this is fast and doesn't use API)
+                if policy_id in self.policy_database:
+                    logger.info(f"Found policy {policy_id} in database")
+                    results[policy_id] = PolicyResearchResult(
+                        success=True,
+                        policy_path=self.policy_database[policy_id],
+                        error_message=None,
+                        confidence_score=1.0,
+                        sources=["Local Database"]
+                    )
+                    continue
+                
+                # Only use API if we haven't hit the limit
+                if api_calls_made >= max_api_calls:
+                    logger.warning(f"API call limit reached ({max_api_calls}), using fallback for {policy_id}")
+                    result = self._research_with_heuristics(policy)
+                else:
+                    # Make API call with retry logic
+                    result = self.research_policy_path(policy)
+                    
+                    # If we made an API call (not from cache), increment counter and add delay
+                    if self.client and '503' not in str(result.error_message or ''):
+                        api_calls_made += 1
+                        # Add delay between API calls to avoid rate limiting
+                        if i < len(policies) - 1:  # Don't delay after last policy
+                            time.sleep(2)  # 2 second delay between API calls
+                
                 results[policy_id] = result
                 
                 if result.success:
@@ -364,6 +528,7 @@ Provide accurate, tested information for Windows 10/11 systems.
                     error_message=str(e)
                 )
         
+        logger.info(f"Bulk research completed. Made {api_calls_made} API calls out of {len(policies)} policies")
         return results
     
     def get_policy_statistics(self) -> Dict[str, Any]:

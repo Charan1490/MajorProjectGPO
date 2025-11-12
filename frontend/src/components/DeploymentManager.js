@@ -86,6 +86,7 @@ const DeploymentManager = () => {
     description: '',
     target_os: 'windows_10_enterprise',
     policy_selection: 'all',
+    selected_template: '',
     selected_groups: [],
     selected_tags: [],
     selected_policies: [],
@@ -108,6 +109,7 @@ const DeploymentManager = () => {
   const [packageFormats, setPackageFormats] = useState([]);
   const [availableGroups, setAvailableGroups] = useState([]);
   const [availableTags, setAvailableTags] = useState([]);
+  const [availableTemplates, setAvailableTemplates] = useState([]);
   const [lgpoStatus, setLgpoStatus] = useState(null);
   
   // Build monitoring
@@ -183,6 +185,12 @@ const DeploymentManager = () => {
       if (tagsResponse.data.success) {
         setAvailableTags(tagsResponse.data.data.tags);
       }
+      
+      // Fetch templates
+      const templatesResponse = await axios.get(`${API_BASE_URL}/templates/`);
+      if (templatesResponse.data.templates) {
+        setAvailableTemplates(templatesResponse.data.templates);
+      }
     } catch (err) {
       console.error('Error fetching options:', err);
     }
@@ -222,7 +230,9 @@ const DeploymentManager = () => {
       };
       
       // Add policy selection parameters
-      if (createForm.policy_selection === 'groups') {
+      if (createForm.policy_selection === 'template') {
+        payload.template_id = createForm.selected_template;
+      } else if (createForm.policy_selection === 'groups') {
         payload.group_names = createForm.selected_groups;
       } else if (createForm.policy_selection === 'tags') {
         payload.tag_names = createForm.selected_tags;
@@ -366,6 +376,7 @@ const DeploymentManager = () => {
       description: '',
       target_os: 'windows_10_enterprise',
       policy_selection: 'all',
+      selected_template: '',
       selected_groups: [],
       selected_tags: [],
       selected_policies: [],
@@ -653,6 +664,7 @@ const DeploymentManager = () => {
         packageFormats={packageFormats}
         availableGroups={availableGroups}
         availableTags={availableTags}
+        availableTemplates={availableTemplates}
         loading={loading}
       />
       
@@ -672,7 +684,7 @@ const DeploymentManager = () => {
 // Create Package Dialog Component
 const CreatePackageDialog = ({ 
   open, onClose, formData, onFormChange, onSubmit, 
-  windowsVersions, packageFormats, availableGroups, availableTags, loading 
+  windowsVersions, packageFormats, availableGroups, availableTags, availableTemplates, loading 
 }) => {
   const [activeStep, setActiveStep] = useState(0);
   const steps = ['Basic Info', 'Policy Selection', 'Export Formats', 'Script Options'];
@@ -773,11 +785,34 @@ const CreatePackageDialog = ({
                 label="Policy Selection Method"
               >
                 <MenuItem value="all">All Available Policies</MenuItem>
+                <MenuItem value="template">Select by Template</MenuItem>
                 <MenuItem value="groups">Select by Groups</MenuItem>
                 <MenuItem value="tags">Select by Tags</MenuItem>
                 <MenuItem value="specific">Specific Policy IDs</MenuItem>
               </Select>
             </FormControl>
+            
+            {formData.policy_selection === 'template' && (
+              <FormControl fullWidth>
+                <InputLabel>Select Template</InputLabel>
+                <Select
+                  value={formData.selected_template || ''}
+                  onChange={(e) => updateForm('selected_template', e.target.value)}
+                  label="Select Template"
+                >
+                  {availableTemplates.map((template) => (
+                    <MenuItem key={template.template_id} value={template.template_id}>
+                      {template.name} ({template.policy_count || 0} policies)
+                      {template.description && (
+                        <Typography variant="caption" display="block" color="text.secondary">
+                          {template.description}
+                        </Typography>
+                      )}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
             
             {formData.policy_selection === 'groups' && (
               <FormControl fullWidth>

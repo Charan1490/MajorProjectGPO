@@ -11,3 +11,4 @@ opencv-python-headless==4.8.1.78
 ghostscript==0.7
 Jinja2==3.1.2
 aiofiles==23.2.1
+google-genai==0.3.0
