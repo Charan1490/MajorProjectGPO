@@ -1350,9 +1350,10 @@ async def create_deployment_package(request: CreatePackageRequest):
     """Create new deployment package"""
     try:
         # Get policies from dashboard based on filters
+        # Use mutually exclusive selection logic
         policies = []
         
-        # NEW: Get policies from a template
+        # Priority 1: Get policies from a template
         if request.template_id:
             try:
                 template_export = template_manager.get_template_with_policies(request.template_id)
@@ -1367,7 +1368,7 @@ async def create_deployment_package(request: CreatePackageRequest):
             except Exception as e:
                 raise HTTPException(status_code=404, detail=f"Template not found or error loading template: {str(e)}")
         
-        # Get specific policies by ID
+        # Priority 2: Get specific policies by ID
         elif request.policy_ids:
             for policy_id in request.policy_ids:
                 if policy_id in dashboard_manager.policies_cache:
@@ -1378,8 +1379,8 @@ async def create_deployment_package(request: CreatePackageRequest):
                         policy_dict['id'] = policy_dict['policy_id']
                     policies.append(policy_dict)
         
-        # Get policies by groups
-        if request.group_names:
+        # Priority 3: Get policies by groups
+        elif request.group_names:
             # Find group IDs by name first
             group_ids = []
             for group_name in request.group_names:
@@ -1389,16 +1390,17 @@ async def create_deployment_package(request: CreatePackageRequest):
                         break
             
             # Get policies that belong to these groups
-            for policy in dashboard_manager.policies_cache.values():
-                if any(gid in policy.group_ids for gid in group_ids):
-                    policy_dict = policy.dict()
-                    # Map policy_id to id field
-                    if 'policy_id' in policy_dict:
-                        policy_dict['id'] = policy_dict['policy_id']
-                    policies.append(policy_dict)
+            if group_ids:
+                for policy in dashboard_manager.policies_cache.values():
+                    if any(gid in policy.group_ids for gid in group_ids):
+                        policy_dict = policy.dict()
+                        # Map policy_id to id field
+                        if 'policy_id' in policy_dict:
+                            policy_dict['id'] = policy_dict['policy_id']
+                        policies.append(policy_dict)
         
-        # Get policies by tags
-        if request.tag_names:
+        # Priority 4: Get policies by tags
+        elif request.tag_names:
             # Find tag IDs by name first
             tag_ids = []
             for tag_name in request.tag_names:
@@ -1408,13 +1410,14 @@ async def create_deployment_package(request: CreatePackageRequest):
                         break
             
             # Get policies that have these tags
-            for policy in dashboard_manager.policies_cache.values():
-                if any(tid in policy.tag_ids for tid in tag_ids):
-                    policy_dict = policy.dict()
-                    # Map policy_id to id field
-                    if 'policy_id' in policy_dict:
-                        policy_dict['id'] = policy_dict['policy_id']
-                    policies.append(policy_dict)
+            if tag_ids:
+                for policy in dashboard_manager.policies_cache.values():
+                    if any(tid in policy.tag_ids for tid in tag_ids):
+                        policy_dict = policy.dict()
+                        # Map policy_id to id field
+                        if 'policy_id' in policy_dict:
+                            policy_dict['id'] = policy_dict['policy_id']
+                        policies.append(policy_dict)
         
         # If no specific filters, get all policies
         if not policies:
