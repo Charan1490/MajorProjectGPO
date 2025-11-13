@@ -4110,20 +4110,27 @@ async def import_policies_to_dashboard():
 @app.post("/utilities/clear-extraction-data")
 async def clear_extraction_data():
     """
-    Clear all extracted policies, results, and uploaded files.
-    This keeps AI cache and dashboard data intact.
-    Only clears:
+    Clear all extracted policies, results, uploaded files, and reset dashboard/template data.
+    This clears:
     - uploads/ (uploaded PDFs)
     - results/ (extraction results and status files)
     - test_output.json (if exists)
+    - dashboard_data/policies.json (resets to empty {})
+    - templates_data/policies.json (resets to empty {})
+    - In-memory caches (dashboard_manager, template_manager)
     
-    Use this to start fresh with new extractions while keeping dashboard state.
+    Use this to completely reset the system and start fresh.
+    Groups and tags structure will be preserved but policy associations will be cleared.
     """
     try:
         cleared_items = {
             "uploads": 0,
             "results": 0,
-            "test_output": False
+            "test_output": False,
+            "dashboard_policies": 0,
+            "template_policies": 0,
+            "groups_reset": 0,
+            "tags_reset": 0
         }
         
         # Clear uploads directory
@@ -4156,16 +4163,90 @@ async def clear_extraction_data():
             except Exception as e:
                 print(f"Error deleting test_output.json: {e}")
         
+        # Clear dashboard policies
+        dashboard_policies_path = os.path.join("dashboard_data", "policies.json")
+        if os.path.exists(dashboard_policies_path):
+            try:
+                with open(dashboard_policies_path, 'r') as f:
+                    policies = json.load(f)
+                    cleared_items["dashboard_policies"] = len(policies)
+                
+                # Reset to empty
+                with open(dashboard_policies_path, 'w') as f:
+                    json.dump({}, f, indent=2)
+                
+                # Clear in-memory cache
+                dashboard_manager.policies_cache.clear()
+            except Exception as e:
+                print(f"Error clearing dashboard policies: {e}")
+        
+        # Clear template policies
+        template_policies_path = os.path.join("templates_data", "policies.json")
+        if os.path.exists(template_policies_path):
+            try:
+                with open(template_policies_path, 'r') as f:
+                    policies = json.load(f)
+                    cleared_items["template_policies"] = len(policies)
+                
+                # Reset to empty
+                with open(template_policies_path, 'w') as f:
+                    json.dump({}, f, indent=2)
+                
+                # Clear in-memory cache
+                template_manager.policies_cache.clear()
+            except Exception as e:
+                print(f"Error clearing template policies: {e}")
+        
+        # Clear policy_ids from groups in dashboard
+        groups_path = os.path.join("dashboard_data", "groups.json")
+        if os.path.exists(groups_path):
+            try:
+                with open(groups_path, 'r') as f:
+                    groups = json.load(f)
+                
+                for group_id, group in groups.items():
+                    if "policy_ids" in group and len(group["policy_ids"]) > 0:
+                        cleared_items["groups_reset"] += 1
+                        group["policy_ids"] = []
+                
+                with open(groups_path, 'w') as f:
+                    json.dump(groups, f, indent=2)
+                
+                # Update in-memory cache
+                dashboard_manager.load_groups()
+            except Exception as e:
+                print(f"Error clearing group policy associations: {e}")
+        
+        # Reset usage_count for tags in dashboard
+        tags_path = os.path.join("dashboard_data", "tags.json")
+        if os.path.exists(tags_path):
+            try:
+                with open(tags_path, 'r') as f:
+                    tags = json.load(f)
+                
+                for tag_id, tag in tags.items():
+                    if "usage_count" in tag and tag["usage_count"] > 0:
+                        cleared_items["tags_reset"] += 1
+                        tag["usage_count"] = 0
+                
+                with open(tags_path, 'w') as f:
+                    json.dump(tags, f, indent=2)
+                
+                # Update in-memory cache
+                dashboard_manager.load_tags()
+            except Exception as e:
+                print(f"Error resetting tag usage counts: {e}")
+        
         # Clear in-memory extraction tasks
         extraction_tasks.clear()
         
-        print(f"✅ Cleared extraction data: {cleared_items}")
+        print(f"✅ Cleared all extraction and policy data: {cleared_items}")
         
         return {
             "success": True,
-            "message": "Extraction data cleared successfully",
+            "message": "All extraction and policy data cleared successfully",
             "details": cleared_items,
-            "note": "Dashboard data and AI cache remain intact"
+            "note": "System reset complete. Groups and tags structure preserved but empty. AI cache remains intact."
         }
         
     except Exception as e:

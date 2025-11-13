@@ -188,19 +188,20 @@ const DashboardStatistics = ({ statistics, isLoading = false }) => {
     setClearing(true);
     try {
       const response = await axios.post(`${API_BASE_URL}/utilities/clear-extraction-data`);
+      const details = response.data.details;
       
       setSnackbar({
         open: true,
-        message: `Successfully cleared: ${response.data.details.uploads} uploads, ${response.data.details.results} results`,
+        message: `Successfully cleared: ${details.uploads} uploads, ${details.results} results, ${details.dashboard_policies} dashboard policies, ${details.template_policies} template policies, ${details.groups_reset} groups reset, ${details.tags_reset} tags reset`,
         severity: 'success'
       });
       
       setClearDialog(false);
       
-      // Optionally reload the page or refresh data
+      // Reload the page to refresh all data
       setTimeout(() => {
         window.location.reload();
-      }, 1500);
+      }, 2000);
       
     } catch (error) {
       setSnackbar({
@@ -245,7 +246,7 @@ const DashboardStatistics = ({ statistics, isLoading = false }) => {
           onClick={() => setClearDialog(true)}
           sx={{ textTransform: 'none' }}
         >
-          Clear Extraction Data
+          Clear All Data
         </Button>
       </Box>
 
@@ -354,13 +355,22 @@ const DashboardStatistics = ({ statistics, isLoading = false }) => {
       </Grid>
 
       {/* Clear Confirmation Dialog */}
-      <Dialog open={clearDialog} onClose={() => !clearing && setClearDialog(false)}>
-        <DialogTitle>Clear Extraction Data?</DialogTitle>
+      <Dialog open={clearDialog} onClose={() => !clearing && setClearDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <ClearIcon color="error" />
+            Clear All Extraction Data?
+          </Box>
+        </DialogTitle>
         <DialogContent>
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            This will permanently delete:
+          <Alert severity="error" sx={{ mb: 2 }}>
+            ⚠️ <strong>WARNING:</strong> This will permanently delete ALL extracted data!
           </Alert>
-          <Box sx={{ pl: 2 }}>
+          
+          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+            Files to be deleted:
+          </Typography>
+          <Box sx={{ pl: 2, mb: 2 }}>
             <Typography variant="body2" gutterBottom>
               • All uploaded PDF files (uploads/)
             </Typography>
@@ -368,18 +378,40 @@ const DashboardStatistics = ({ statistics, isLoading = false }) => {
               • All extraction results and status files (results/)
             </Typography>
             <Typography variant="body2" gutterBottom>
-              • test_output.json file (if exists)
+              • test_output.json file
+            </Typography>
+          </Box>
+
+          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', color: 'error.main' }}>
+            Dashboard data to be cleared:
+          </Typography>
+          <Box sx={{ pl: 2, mb: 2 }}>
+            <Typography variant="body2" gutterBottom>
+              • All dashboard policies ({statistics?.total_policies || 0} policies)
+            </Typography>
+            <Typography variant="body2" gutterBottom>
+              • All template policies
+            </Typography>
+            <Typography variant="body2" gutterBottom>
+              • Group policy associations
+            </Typography>
+            <Typography variant="body2" gutterBottom>
+              • Tag usage counts
             </Typography>
             <Typography variant="body2" gutterBottom>
               • In-memory extraction tasks
             </Typography>
           </Box>
-          <Alert severity="info" sx={{ mt: 2 }}>
-            <strong>Note:</strong> Your dashboard data (policies, groups, tags) and AI cache will remain intact.
+
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <strong>Preserved:</strong> Groups and tags structure will remain, but they will be empty. AI cache remains intact.
           </Alert>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-            This action cannot be undone. The page will reload after clearing.
-          </Typography>
+          
+          <Alert severity="warning">
+            <Typography variant="body2" fontWeight="bold">
+              This action cannot be undone. The page will reload after clearing.
+            </Typography>
+          </Alert>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setClearDialog(false)} disabled={clearing}>
