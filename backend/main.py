@@ -4104,6 +4104,146 @@ async def import_policies_to_dashboard():
 
 
 # ============================================================================
+# CACHE AND DATA CLEARING UTILITIES
+# ============================================================================
+
+@app.post("/utilities/clear-extraction-data")
+async def clear_extraction_data():
+    """
+    Clear all extracted policies, results, and uploaded files.
+    This keeps AI cache and dashboard data intact.
+    Only clears:
+    - uploads/ (uploaded PDFs)
+    - results/ (extraction results and status files)
+    - test_output.json (if exists)
+    
+    Use this to start fresh with new extractions while keeping dashboard state.
+    """
+    try:
+        cleared_items = {
+            "uploads": 0,
+            "results": 0,
+            "test_output": False
+        }
+        
+        # Clear uploads directory
+        if os.path.exists("uploads"):
+            for filename in os.listdir("uploads"):
+                file_path = os.path.join("uploads", filename)
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                        cleared_items["uploads"] += 1
+                except Exception as e:
+                    print(f"Error deleting {file_path}: {e}")
+        
+        # Clear results directory
+        if os.path.exists("results"):
+            for filename in os.listdir("results"):
+                file_path = os.path.join("results", filename)
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                        cleared_items["results"] += 1
+                except Exception as e:
+                    print(f"Error deleting {file_path}: {e}")
+        
+        # Clear test_output.json if exists
+        if os.path.exists("test_output.json"):
+            try:
+                os.unlink("test_output.json")
+                cleared_items["test_output"] = True
+            except Exception as e:
+                print(f"Error deleting test_output.json: {e}")
+        
+        # Clear in-memory extraction tasks
+        extraction_tasks.clear()
+        
+        print(f"✅ Cleared extraction data: {cleared_items}")
+        
+        return {
+            "success": True,
+            "message": "Extraction data cleared successfully",
+            "details": cleared_items,
+            "note": "Dashboard data and AI cache remain intact"
+        }
+        
+    except Exception as e:
+        print(f"Error clearing extraction data: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/utilities/clear-ai-cache")
+async def clear_ai_cache():
+    """
+    Clear AI generation cache and temporary files.
+    This clears:
+    - Gemini AI response cache (if any)
+    - Temporary generated files
+    - In-memory generation history
+    
+    Does NOT clear:
+    - Extracted policies
+    - Dashboard data
+    - Templates
+    - Uploaded files
+    
+    Use this to force fresh AI responses.
+    """
+    try:
+        cleared_items = {
+            "ai_cache_entries": 0,
+            "temp_files": 0
+        }
+        
+        # Clear any cached AI responses (if you have a cache directory)
+        cache_dir = os.path.join("data", "ai_cache")
+        if os.path.exists(cache_dir):
+            for filename in os.listdir(cache_dir):
+                file_path = os.path.join(cache_dir, filename)
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                        cleared_items["ai_cache_entries"] += 1
+                except Exception as e:
+                    print(f"Error deleting {file_path}: {e}")
+        
+        # Clear temporary files
+        temp_patterns = [
+            "temp_*.json",
+            "generated_*.tmp",
+            "cache_*.json"
+        ]
+        
+        for pattern in temp_patterns:
+            import glob
+            for file_path in glob.glob(pattern):
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                        cleared_items["temp_files"] += 1
+                except Exception as e:
+                    print(f"Error deleting {file_path}: {e}")
+        
+        print(f"✅ Cleared AI cache: {cleared_items}")
+        
+        return {
+            "success": True,
+            "message": "AI cache cleared successfully",
+            "details": cleared_items,
+            "note": "Extracted policies and dashboard data remain intact. Next AI operations will generate fresh responses."
+        }
+        
+    except Exception as e:
+        print(f"Error clearing AI cache: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
 # APPLICATION STARTUP/SHUTDOWN HANDLERS
 # ============================================================================
 

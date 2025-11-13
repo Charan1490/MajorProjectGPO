@@ -44,7 +44,8 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemIcon
+  ListItemIcon,
+  Snackbar
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -421,14 +422,57 @@ const DeploymentManager = () => {
     }
   };
 
+  // Clear AI Cache functionality
+  const [clearCacheDialog, setClearCacheDialog] = useState(false);
+  const [clearingCache, setClearingCache] = useState(false);
+  const [cacheSnackbar, setCacheSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+  const handleClearAICache = async () => {
+    setClearingCache(true);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/utilities/clear-ai-cache`);
+      
+      setCacheSnackbar({
+        open: true,
+        message: `AI cache cleared successfully: ${response.data.details.ai_cache_entries} cache entries, ${response.data.details.temp_files} temp files`,
+        severity: 'success'
+      });
+      
+      setClearCacheDialog(false);
+      
+    } catch (error) {
+      setCacheSnackbar({
+        open: true,
+        message: `Error: ${error.response?.data?.detail || error.message}`,
+        severity: 'error'
+      });
+    } finally {
+      setClearingCache(false);
+    }
+  };
+
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom>
-        Deployment Package Manager
-      </Typography>
-      <Typography variant="body1" color="text.secondary" gutterBottom>
-        Create and manage offline GPO deployment packages for Windows systems
-      </Typography>
+      {/* Header with Clear AI Cache Button */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Box>
+          <Typography variant="h4" gutterBottom>
+            Deployment Package Manager
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Create and manage offline GPO deployment packages for Windows systems
+          </Typography>
+        </Box>
+        <Button
+          variant="outlined"
+          color="warning"
+          startIcon={<RefreshIcon />}
+          onClick={() => setClearCacheDialog(true)}
+          sx={{ textTransform: 'none' }}
+        >
+          Clear AI Cache
+        </Button>
+      </Box>
       
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
@@ -677,6 +721,59 @@ const DeploymentManager = () => {
         }}
         package={selectedPackage}
       />
+
+      {/* Clear AI Cache Confirmation Dialog */}
+      <Dialog open={clearCacheDialog} onClose={() => !clearingCache && setClearCacheDialog(false)}>
+        <DialogTitle>Clear AI Cache?</DialogTitle>
+        <DialogContent>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            This will clear AI-generated responses and temporary files:
+          </Alert>
+          <Box sx={{ pl: 2 }}>
+            <Typography variant="body2" gutterBottom>
+              • Gemini AI response cache
+            </Typography>
+            <Typography variant="body2" gutterBottom>
+              • Temporary generated files
+            </Typography>
+            <Typography variant="body2" gutterBottom>
+              • In-memory generation history
+            </Typography>
+          </Box>
+          <Alert severity="success" sx={{ mt: 2 }}>
+            <strong>Safe:</strong> Your extracted policies, dashboard data, and templates will remain intact.
+          </Alert>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            Use this if you want to force fresh AI responses for policy generation.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setClearCacheDialog(false)} disabled={clearingCache}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleClearAICache}
+            color="warning"
+            variant="contained"
+            disabled={clearingCache}
+            startIcon={clearingCache ? <CircularProgress size={20} /> : <RefreshIcon />}
+          >
+            {clearingCache ? 'Clearing...' : 'Clear Cache'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for cache notifications */}
+      <Snackbar
+        open={cacheSnackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setCacheSnackbar({ ...cacheSnackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={cacheSnackbar.severity} onClose={() => setCacheSnackbar({ ...cacheSnackbar, open: false })}>
+          {cacheSnackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

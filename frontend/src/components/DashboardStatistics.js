@@ -3,7 +3,7 @@
  * Displays comprehensive statistics and compliance metrics
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Paper,
   Grid,
@@ -13,7 +13,14 @@ import {
   Chip,
   Card,
   CardContent,
-  CircularProgress
+  CircularProgress,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Alert,
+  Snackbar
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
@@ -21,8 +28,12 @@ import {
   Assignment as AssignmentIcon,
   Group as GroupIcon,
   Label as LabelIcon,
-  History as HistoryIcon
+  History as HistoryIcon,
+  DeleteSweep as ClearIcon
 } from '@mui/icons-material';
+import axios from 'axios';
+
+const API_BASE_URL = 'http://localhost:8000';
 
 const StatCard = ({ title, value, subtitle, icon: Icon, color, progress }) => (
   <Card sx={{ height: '100%' }}>
@@ -169,6 +180,39 @@ const PriorityBreakdown = ({ stats }) => {
 };
 
 const DashboardStatistics = ({ statistics, isLoading = false }) => {
+  const [clearDialog, setClearDialog] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+  const handleClearExtractionData = async () => {
+    setClearing(true);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/utilities/clear-extraction-data`);
+      
+      setSnackbar({
+        open: true,
+        message: `Successfully cleared: ${response.data.details.uploads} uploads, ${response.data.details.results} results`,
+        severity: 'success'
+      });
+      
+      setClearDialog(false);
+      
+      // Optionally reload the page or refresh data
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+      
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: `Error: ${error.response?.data?.detail || error.message}`,
+        severity: 'error'
+      });
+    } finally {
+      setClearing(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -189,6 +233,22 @@ const DashboardStatistics = ({ statistics, isLoading = false }) => {
 
   return (
     <Box>
+      {/* Header with Clear Button */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h5" component="h2">
+          Dashboard Statistics
+        </Typography>
+        <Button
+          variant="outlined"
+          color="error"
+          startIcon={<ClearIcon />}
+          onClick={() => setClearDialog(true)}
+          sx={{ textTransform: 'none' }}
+        >
+          Clear Extraction Data
+        </Button>
+      </Box>
+
       {/* Key Metrics */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6} md={3}>
@@ -292,6 +352,62 @@ const DashboardStatistics = ({ statistics, isLoading = false }) => {
           <PriorityBreakdown stats={statistics} />
         </Grid>
       </Grid>
+
+      {/* Clear Confirmation Dialog */}
+      <Dialog open={clearDialog} onClose={() => !clearing && setClearDialog(false)}>
+        <DialogTitle>Clear Extraction Data?</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            This will permanently delete:
+          </Alert>
+          <Box sx={{ pl: 2 }}>
+            <Typography variant="body2" gutterBottom>
+              • All uploaded PDF files (uploads/)
+            </Typography>
+            <Typography variant="body2" gutterBottom>
+              • All extraction results and status files (results/)
+            </Typography>
+            <Typography variant="body2" gutterBottom>
+              • test_output.json file (if exists)
+            </Typography>
+            <Typography variant="body2" gutterBottom>
+              • In-memory extraction tasks
+            </Typography>
+          </Box>
+          <Alert severity="info" sx={{ mt: 2 }}>
+            <strong>Note:</strong> Your dashboard data (policies, groups, tags) and AI cache will remain intact.
+          </Alert>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            This action cannot be undone. The page will reload after clearing.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setClearDialog(false)} disabled={clearing}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleClearExtractionData}
+            color="error"
+            variant="contained"
+            disabled={clearing}
+            startIcon={clearing ? <CircularProgress size={20} /> : <ClearIcon />}
+          >
+            {clearing ? 'Clearing...' : 'Clear Data'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
