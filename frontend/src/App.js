@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import './App.css';
 import {
   Container,
   Box,
@@ -80,27 +81,143 @@ import ChatbotWidget from './components/ChatbotWidget';
 
 const API_BASE_URL = 'http://localhost:8000';
 
-// Theme configuration
+// Enhanced Theme Configuration with Modern Design
 const lightTheme = createTheme({
   palette: {
     mode: 'light',
     primary: {
       main: '#1976d2',
+      light: '#42a5f5',
+      dark: '#1565c0',
+      contrastText: '#ffffff',
     },
     secondary: {
       main: '#dc004e',
+      light: '#f50057',
+      dark: '#c51162',
+      contrastText: '#ffffff',
     },
     success: {
       main: '#2e7d32',
+      light: '#4caf50',
+      dark: '#1b5e20',
+      contrastText: '#ffffff',
     },
     error: {
       main: '#d32f2f',
+      light: '#ef5350',
+      dark: '#c62828',
+      contrastText: '#ffffff',
     },
     warning: {
       main: '#ed6c02',
+      light: '#ff9800',
+      dark: '#e65100',
+      contrastText: '#ffffff',
     },
     info: {
       main: '#0288d1',
+      light: '#03a9f4',
+      dark: '#01579b',
+      contrastText: '#ffffff',
+    },
+    background: {
+      default: '#f5f7fa',
+      paper: '#ffffff',
+    },
+  },
+  typography: {
+    fontFamily: "'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    h1: {
+      fontWeight: 700,
+      fontSize: '2.5rem',
+      letterSpacing: '-0.01562em',
+    },
+    h2: {
+      fontWeight: 700,
+      fontSize: '2rem',
+      letterSpacing: '-0.00833em',
+    },
+    h3: {
+      fontWeight: 600,
+      fontSize: '1.75rem',
+      letterSpacing: '0em',
+    },
+    h4: {
+      fontWeight: 600,
+      fontSize: '1.5rem',
+      letterSpacing: '0.00735em',
+    },
+    h5: {
+      fontWeight: 600,
+      fontSize: '1.25rem',
+      letterSpacing: '0em',
+    },
+    h6: {
+      fontWeight: 600,
+      fontSize: '1rem',
+      letterSpacing: '0.0075em',
+    },
+    button: {
+      textTransform: 'none',
+      fontWeight: 600,
+    },
+  },
+  shape: {
+    borderRadius: 12,
+  },
+  shadows: [
+    'none',
+    '0px 2px 4px rgba(0,0,0,0.05)',
+    '0px 4px 8px rgba(0,0,0,0.08)',
+    '0px 8px 16px rgba(0,0,0,0.1)',
+    '0px 12px 24px rgba(0,0,0,0.12)',
+    '0px 16px 32px rgba(0,0,0,0.15)',
+    '0px 20px 40px rgba(0,0,0,0.18)',
+    '0px 24px 48px rgba(0,0,0,0.2)',
+    '0px 2px 4px rgba(0,0,0,0.05)',
+    '0px 4px 8px rgba(0,0,0,0.08)',
+    '0px 8px 16px rgba(0,0,0,0.1)',
+    '0px 12px 24px rgba(0,0,0,0.12)',
+    '0px 16px 32px rgba(0,0,0,0.15)',
+    '0px 20px 40px rgba(0,0,0,0.18)',
+    '0px 24px 48px rgba(0,0,0,0.2)',
+    '0px 2px 4px rgba(0,0,0,0.05)',
+    '0px 4px 8px rgba(0,0,0,0.08)',
+    '0px 8px 16px rgba(0,0,0,0.1)',
+    '0px 12px 24px rgba(0,0,0,0.12)',
+    '0px 16px 32px rgba(0,0,0,0.15)',
+    '0px 20px 40px rgba(0,0,0,0.18)',
+    '0px 24px 48px rgba(0,0,0,0.2)',
+    '0px 2px 4px rgba(0,0,0,0.05)',
+    '0px 4px 8px rgba(0,0,0,0.08)',
+    '0px 8px 16px rgba(0,0,0,0.1)',
+  ],
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: '8px',
+          textTransform: 'none',
+          fontWeight: 600,
+          padding: '10px 24px',
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          borderRadius: '12px',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          borderRadius: '12px',
+        },
+      },
     },
   },
 });
@@ -110,21 +227,137 @@ const darkTheme = createTheme({
     mode: 'dark',
     primary: {
       main: '#90caf9',
+      light: '#e3f2fd',
+      dark: '#42a5f5',
+      contrastText: '#000000',
     },
     secondary: {
       main: '#f48fb1',
+      light: '#ffc1e3',
+      dark: '#bf5f82',
+      contrastText: '#000000',
     },
     success: {
       main: '#66bb6a',
+      light: '#81c784',
+      dark: '#388e3c',
+      contrastText: '#000000',
     },
     error: {
       main: '#f44336',
+      light: '#e57373',
+      dark: '#d32f2f',
+      contrastText: '#ffffff',
     },
     warning: {
       main: '#ffa726',
+      light: '#ffb74d',
+      dark: '#f57c00',
+      contrastText: '#000000',
     },
     info: {
       main: '#29b6f6',
+      light: '#4fc3f7',
+      dark: '#0288d1',
+      contrastText: '#000000',
+    },
+    background: {
+      default: '#0f172a',
+      paper: '#1e293b',
+    },
+  },
+  typography: {
+    fontFamily: "'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    h1: {
+      fontWeight: 700,
+      fontSize: '2.5rem',
+      letterSpacing: '-0.01562em',
+    },
+    h2: {
+      fontWeight: 700,
+      fontSize: '2rem',
+      letterSpacing: '-0.00833em',
+    },
+    h3: {
+      fontWeight: 600,
+      fontSize: '1.75rem',
+      letterSpacing: '0em',
+    },
+    h4: {
+      fontWeight: 600,
+      fontSize: '1.5rem',
+      letterSpacing: '0.00735em',
+    },
+    h5: {
+      fontWeight: 600,
+      fontSize: '1.25rem',
+      letterSpacing: '0em',
+    },
+    h6: {
+      fontWeight: 600,
+      fontSize: '1rem',
+      letterSpacing: '0.0075em',
+    },
+    button: {
+      textTransform: 'none',
+      fontWeight: 600,
+    },
+  },
+  shape: {
+    borderRadius: 12,
+  },
+  shadows: [
+    'none',
+    '0px 2px 4px rgba(0,0,0,0.3)',
+    '0px 4px 8px rgba(0,0,0,0.35)',
+    '0px 8px 16px rgba(0,0,0,0.4)',
+    '0px 12px 24px rgba(0,0,0,0.45)',
+    '0px 16px 32px rgba(0,0,0,0.5)',
+    '0px 20px 40px rgba(0,0,0,0.55)',
+    '0px 24px 48px rgba(0,0,0,0.6)',
+    '0px 2px 4px rgba(0,0,0,0.3)',
+    '0px 4px 8px rgba(0,0,0,0.35)',
+    '0px 8px 16px rgba(0,0,0,0.4)',
+    '0px 12px 24px rgba(0,0,0,0.45)',
+    '0px 16px 32px rgba(0,0,0,0.5)',
+    '0px 20px 40px rgba(0,0,0,0.55)',
+    '0px 24px 48px rgba(0,0,0,0.6)',
+    '0px 2px 4px rgba(0,0,0,0.3)',
+    '0px 4px 8px rgba(0,0,0,0.35)',
+    '0px 8px 16px rgba(0,0,0,0.4)',
+    '0px 12px 24px rgba(0,0,0,0.45)',
+    '0px 16px 32px rgba(0,0,0,0.5)',
+    '0px 20px 40px rgba(0,0,0,0.55)',
+    '0px 24px 48px rgba(0,0,0,0.6)',
+    '0px 2px 4px rgba(0,0,0,0.3)',
+    '0px 4px 8px rgba(0,0,0,0.35)',
+    '0px 8px 16px rgba(0,0,0,0.4)',
+  ],
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: '8px',
+          textTransform: 'none',
+          fontWeight: 600,
+          padding: '10px 24px',
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          borderRadius: '12px',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          borderRadius: '12px',
+        },
+      },
     },
   },
 });
@@ -856,35 +1089,75 @@ function App() {
     );
   }, [dashboardPolicies, dashboardSearchQuery]);
 
+  // Clear all extracted data function
+  const handleClearAllData = () => {
+    if (window.confirm('Are you sure you want to clear all extracted policies and data? This action cannot be undone.')) {
+      setFile(null);
+      setTaskId('');
+      setExtractionStatus(null);
+      setPolicies([]);
+      setCompletedTasks([]);
+      setUploadError('');
+      setLoadError('');
+      setSearchQuery('');
+      setStatusFilter('all');
+      setSelectedPolicies([]);
+      setTemplatePolicies([]);
+      setDashboardPolicies([]);
+      setDashboardStatistics(null);
+      alert('All data has been cleared successfully!');
+    }
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box sx={{ flexGrow: 1 }}>
-        <AppBar position="static">
-          <Toolbar>
+        <AppBar position="static" className={darkMode ? 'app-bar-gradient-dark' : 'app-bar-gradient'} elevation={0}>
+          <Toolbar sx={{ py: 1 }}>
             <IconButton
               edge="start"
               color="inherit"
               aria-label="menu"
               onClick={() => setDrawerOpen(true)}
               sx={{ mr: 2 }}
+              className="icon-bounce"
             >
               <MenuIcon />
             </IconButton>
-            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            <Typography variant="h6" component="div" className="app-title" sx={{ flexGrow: 1 }}>
               CIS Benchmark Parser
             </Typography>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={darkMode}
-                  onChange={(e) => setDarkMode(e.target.checked)}
-                  icon={<LightModeIcon />}
-                  checkedIcon={<DarkModeIcon />}
-                />
-              }
-              label=""
-            />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Chip
+                icon={darkMode ? <DarkModeIcon /> : <LightModeIcon />}
+                label={darkMode ? 'Dark Mode' : 'Light Mode'}
+                size="small"
+                sx={{ 
+                  background: 'rgba(255, 255, 255, 0.15)',
+                  color: 'white',
+                  fontWeight: 600,
+                  '&:hover': { background: 'rgba(255, 255, 255, 0.25)' }
+                }}
+              />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={darkMode}
+                    onChange={(e) => setDarkMode(e.target.checked)}
+                    sx={{
+                      '& .MuiSwitch-switchBase.Mui-checked': {
+                        color: '#90caf9',
+                      },
+                      '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                        backgroundColor: '#90caf9',
+                      },
+                    }}
+                  />
+                }
+                label=""
+              />
+            </Box>
           </Toolbar>
         </AppBar>
 
@@ -893,14 +1166,27 @@ function App() {
           anchor="left"
           open={drawerOpen}
           onClose={() => setDrawerOpen(false)}
+          PaperProps={{
+            className: darkMode ? 'dark-mode' : '',
+            sx: { width: 280 }
+          }}
         >
           <Box
-            sx={{ width: 250 }}
+            sx={{ width: 280, pt: 2 }}
             role="presentation"
             onClick={() => setDrawerOpen(false)}
             onKeyDown={() => setDrawerOpen(false)}
           >
-            <List>
+            <Box sx={{ px: 3, pb: 2 }}>
+              <Typography variant="h6" className="gradient-text">
+                Navigation
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Manage your CIS benchmarks
+              </Typography>
+            </Box>
+            <Divider />
+            <List className="slide-in">
               <ListItem button onClick={() => setCurrentTab(0)}>
                 <ListItemIcon>
                   <UploadIcon />
@@ -974,7 +1260,11 @@ function App() {
           </Box>
         </Drawer>
 
-        <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Container 
+          maxWidth="xl" 
+          className={`fade-in ${darkMode ? 'main-container-dark' : 'main-container'}`}
+          sx={{ mt: 4, mb: 4, px: { xs: 2, sm: 3, md: 4 } }}
+        >
           <Tabs 
             value={currentTab} 
             onChange={handleTabChange} 
@@ -982,8 +1272,13 @@ function App() {
             scrollButtons="auto"
             allowScrollButtonsMobile
             sx={{
+              mb: 4,
               '& .MuiTabs-scrollButtons': {
                 '&.Mui-disabled': { opacity: 0.3 }
+              },
+              '& .MuiTab-root': {
+                minHeight: 64,
+                fontSize: '1rem',
               }
             }}
           >
@@ -1000,9 +1295,21 @@ function App() {
           {/* Upload Tab */}
           {currentTab === 0 && (
             <Paper sx={{ p: 3, mt: 3 }}>
-              <Typography variant="h5" gutterBottom>
-                Upload CIS Benchmark PDF
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h5" gutterBottom sx={{ mb: 0 }}>
+                  Upload CIS Benchmark PDF
+                </Typography>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  startIcon={<DeleteIcon />}
+                  onClick={handleClearAllData}
+                  disabled={isUploading}
+                  sx={{ textTransform: 'none' }}
+                >
+                  Clear All Data
+                </Button>
+              </Box>
               
               <FileUploader 
                 onFileChange={(selectedFile) => {
@@ -1114,6 +1421,22 @@ function App() {
           {/* View Policies Tab */}
           {currentTab === 1 && (
             <Paper sx={{ p: 3, mt: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Typography variant="h5">
+                  View Extracted Policies
+                </Typography>
+                {policies.length > 0 && (
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    startIcon={<DeleteIcon />}
+                    onClick={handleClearAllData}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    Clear All Data
+                  </Button>
+                )}
+              </Box>
               {isLoadingPolicies ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
                   <CircularProgress size={40} />
@@ -1210,9 +1533,22 @@ function App() {
           {/* Previous Extractions Tab */}
           {currentTab === 2 && (
             <Paper sx={{ p: 3, mt: 3 }}>
-              <Typography variant="h5" gutterBottom>
-                Previous Extractions
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Typography variant="h5">
+                  Previous Extractions
+                </Typography>
+                {completedTasks.length > 0 && (
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    startIcon={<DeleteIcon />}
+                    onClick={handleClearAllData}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    Clear All Data
+                  </Button>
+                )}
+              </Box>
               
               {isLoadingTasks ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -1243,9 +1579,22 @@ function App() {
           {/* Template Manager Tab */}
           {currentTab === 3 && (
             <Paper sx={{ p: 3, mt: 3 }}>
-              <Typography variant="h4" gutterBottom>
-                GPO Template Manager
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Typography variant="h4">
+                  GPO Template Manager
+                </Typography>
+                {templatePolicies.length > 0 && (
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    startIcon={<DeleteIcon />}
+                    onClick={handleClearAllData}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    Clear All Data
+                  </Button>
+                )}
+              </Box>
               
               {/* Import CIS Policies Section */}
               <Paper sx={{ p: 2, mb: 3, bgcolor: 'background.default' }}>
@@ -1593,9 +1942,22 @@ function App() {
           {/* Policy Dashboard Tab */}
           {currentTab === 4 && (
             <Paper sx={{ p: 3, mt: 3 }}>
-              <Typography variant="h4" gutterBottom>
-                Policy Dashboard
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Typography variant="h4">
+                  Policy Dashboard
+                </Typography>
+                {dashboardPolicies.length > 0 && (
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    startIcon={<DeleteIcon />}
+                    onClick={handleClearAllData}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    Clear All Data
+                  </Button>
+                )}
+              </Box>
               
               {/* Import Section */}
               <Paper sx={{ p: 2, mb: 3, bgcolor: 'background.default' }}>
