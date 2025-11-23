@@ -15,7 +15,7 @@
     "color": "#ff5722",
     "created_at": "2025-11-11 23:09:25.621333",
     "created_by": "system",
-    "usage_count": 0
+    "usage_count": 12
   },
   "88a3ce67-2055-4df7-88d4-e93ccc839bd0": {
     "tag_id": "88a3ce67-2055-4df7-88d4-e93ccc839bd0",
@@ -24,7 +24,7 @@
     "color": "#673ab7",
     "created_at": "2025-11-11 23:09:25.621338",
     "created_by": "system",
-    "usage_count": 0
+    "usage_count": 58
   },
   "5549a9a7-9d27-4b9c-914e-a51aba75e976": {
     "tag_id": "5549a9a7-9d27-4b9c-914e-a51aba75e976",
@@ -33,7 +33,7 @@
     "color": "#3f51b5",
     "created_at": "2025-11-11 23:09:25.621343",
     "created_by": "system",
-    "usage_count": 0
+    "usage_count": 256
   },
   "4391edf5-5c25-40fd-a75a-9454a6bdea07": {
     "tag_id": "4391edf5-5c25-40fd-a75a-9454a6bdea07",
@@ -42,7 +42,7 @@
     "color": "#2196f3",
     "created_at": "2025-11-11 23:09:25.621346",
     "created_by": "system",
-    "usage_count": 0
+    "usage_count": 70
   },
   "0870aa2e-2fcf-4f5c-bd17-9572d05ff600": {
     "tag_id": "0870aa2e-2fcf-4f5c-bd17-9572d05ff600",
@@ -51,7 +51,7 @@
     "color": "#00bcd4",
     "created_at": "2025-11-11 23:09:25.621350",
     "created_by": "system",
-    "usage_count": 0
+    "usage_count": 73
   },
   "20085f12-5b0f-4d91-bbf3-81365f97a584": {
     "tag_id": "20085f12-5b0f-4d91-bbf3-81365f97a584",
@@ -60,7 +60,7 @@
     "color": "#009688",
     "created_at": "2025-11-11 23:09:25.621353",
     "created_by": "system",
-    "usage_count": 0
+    "usage_count": 187
   },
   "9b806ad3-4c9c-4a31-a9de-e31c143134c2": {
     "tag_id": "9b806ad3-4c9c-4a31-a9de-e31c143134c2",
@@ -69,7 +69,7 @@
     "color": "#4caf50",
     "created_at": "2025-11-11 23:09:25.621358",
     "created_by": "system",
-    "usage_count": 0
+    "usage_count": 15
   },
   "85376ff1-e648-41b0-88c2-57de07481ae0": {
     "tag_id": "85376ff1-e648-41b0-88c2-57de07481ae0",
@@ -78,7 +78,7 @@
     "color": "#8bc34a",
     "created_at": "2025-11-11 23:09:25.621361",
     "created_by": "system",
-    "usage_count": 0
+    "usage_count": 356
   },
   "fc21d0b3-97b1-457c-84ff-476e534c8adb": {
     "tag_id": "fc21d0b3-97b1-457c-84ff-476e534c8adb",
@@ -87,6 +87,6 @@
     "color": "#cddc39",
     "created_at": "2025-11-11 23:09:25.621364",
     "created_by": "system",
-    "usage_count": 0
+    "usage_count": 118
   }
 }

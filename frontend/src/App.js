@@ -75,6 +75,8 @@ import DashboardStatistics from './components/DashboardStatistics';
 import AdvancedPolicyTable from './components/AdvancedPolicyTable';
 import PolicyHistoryDialog from './components/PolicyHistoryDialog';
 import DeploymentManager from './components/DeploymentManager';
+import AuditScanner from './components/AuditScanner';
+import ChatbotWidget from './components/ChatbotWidget';
 
 const API_BASE_URL = 'http://localhost:8000';
 
@@ -1678,99 +1680,9 @@ function App() {
             </Paper>
           )}
 
-          {/* Audit Manager Tab */}
+          {/* Audit Scanner Tab */}
           {currentTab === 6 && (
-            <Paper sx={{ p: 3, mt: 3 }}>
-              <Typography variant="h5" gutterBottom>
-                System Audit Manager
-              </Typography>
-              <Typography variant="body1" color="text.secondary" paragraph>
-                Step 6: Perform comprehensive CIS compliance audits on target Windows systems.
-              </Typography>
-              
-              <Alert severity="info" sx={{ mb: 3 }}>
-                <Typography variant="body2">
-                  <strong>Audit Manager Features:</strong>
-                  <br />• Create and run CIS compliance audit configurations
-                  <br />• Generate detailed compliance reports (HTML, PDF, CSV, Excel)
-                  <br />• Track audit history and compliance trends
-                  <br />• Export audit results for analysis
-                  <br />• System information collection and analysis
-                </Typography>
-              </Alert>
-
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>
-                        Create New Audit
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" paragraph>
-                        Configure and execute a new CIS compliance audit
-                      </Typography>
-                      <Button variant="contained" startIcon={<SearchIcon />} fullWidth>
-                        Create Audit Configuration
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                
-                <Grid item xs={12} md={6}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>
-                        Audit History
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" paragraph>
-                        View previous audit results and reports
-                      </Typography>
-                      <Button variant="outlined" startIcon={<HistoryIcon />} fullWidth>
-                        View Audit History
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>
-                        Generate Reports
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" paragraph>
-                        Export audit results in various formats
-                      </Typography>
-                      <Button variant="outlined" startIcon={<DownloadIcon />} fullWidth>
-                        Generate Report
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>
-                        System Information
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" paragraph>
-                        View current system configuration details
-                      </Typography>
-                      <Button variant="outlined" startIcon={<InfoIcon />} fullWidth>
-                        Get System Info
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              </Grid>
-
-              <Alert severity="warning" sx={{ mt: 3 }}>
-                <Typography variant="body2">
-                  <strong>Note:</strong> Audit functionality requires appropriate permissions on the target system and may need to be run as administrator.
-                </Typography>
-              </Alert>
-            </Paper>
+            <AuditScanner />
           )}
 
           {/* Remediation Manager Tab */}
@@ -1944,6 +1856,9 @@ function App() {
           </Dialog>
         </Container>
       </Box>
+      
+      {/* Global Chatbot Widget - appears on all pages */}
+      <ChatbotWidget />
     </ThemeProvider>
   );
 }

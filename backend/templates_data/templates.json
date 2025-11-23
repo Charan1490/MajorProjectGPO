@@ -1,1 +1,19 @@
-{}
+{
+  "4c6b8984-4e91-4557-80d7-579daf5a3ac5": {
+    "template_id": "4c6b8984-4e91-4557-80d7-579daf5a3ac5",
+    "name": "testing",
+    "description": "new one",
+    "created_at": "2025-11-13 14:01:15.302761",
+    "updated_at": "2025-11-13 14:01:15.302765",
+    "cis_level": "Level 1",
+    "tags": [],
+    "policy_ids": [
+      "de246063-c947-42d6-8ac8-74835a2eb5c8",
+      "6f4b453c-cfc8-472e-8a82-c88bf7b31617",
+      "5de04550-4aa9-4102-8e84-d1c2e89df561",
+      "b03809c4-1b17-4164-8cba-4da6531afdc0"
+    ],
+    "is_active": true,
+    "is_default": false
+  }
+}
