@@ -78,6 +78,7 @@ import PolicyHistoryDialog from './components/PolicyHistoryDialog';
 import DeploymentManager from './components/DeploymentManager';
 import AuditScanner from './components/AuditScanner';
 import ChatbotWidget from './components/ChatbotWidget';
+import FleetDashboard from './components/FleetDashboard';
 
 const API_BASE_URL = 'http://localhost:8000';
 
@@ -1290,6 +1291,7 @@ function App() {
             <Tab label="Deployment Manager" />
             <Tab label="Audit Manager" />
             <Tab label="Remediation Manager" />
+            <Tab label="Fleet Management" />
           </Tabs>
 
           {/* Upload Tab */}
@@ -2216,6 +2218,11 @@ function App() {
               <Button onClick={handleCreateTemplate} variant="contained">Create Template</Button>
             </DialogActions>
           </Dialog>
+
+          {/* Fleet Management Tab */}
+          {currentTab === 8 && (
+            <FleetDashboard />
+          )}
         </Container>
       </Box>
       

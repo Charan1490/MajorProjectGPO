@@ -9,6 +9,7 @@ from pydantic import BaseModel
 import uvicorn
 import json
 import os
+import asyncio
 from datetime import datetime
 import uuid
 import aiofiles
@@ -74,6 +75,16 @@ from remediation.remediation_manager import RemediationManager
 from remediation.models_remediation import (
     RemediationPlan, RemediationSession, RemediationStatus, RemediationSeverity,
     BackupType, SystemBackup, RollbackPlan
+)
+
+# Import fleet management modules (Phase 1: Central Deployment Server)
+from fleet_manager import FleetManager
+from websocket_manager import websocket_manager, fleet_websocket_endpoint
+from models_fleet import (
+    Machine, MachineRegistration, MachineHeartbeat, MachineStatus,
+    RemoteDeployment, DeploymentProgress, DeploymentSummary, DeploymentPhase,
+    FleetStatistics, AgentCommand, AgentCommandResult, RollbackRequest as FleetRollbackRequest,
+    MachineGroupRequest, AgentCapability
 )
 
 # Pydantic request models for deployment endpoints
@@ -247,6 +258,12 @@ documentation_manager = DocumentationManager()
 
 # Initialize Audit Manager (Step 6)
 audit_manager = AuditManager()
+
+# Initialize Remediation Manager (Step 7)
+remediation_manager = RemediationManager()
+
+# Initialize Fleet Manager (Phase 1: Central Deployment Server)
+fleet_manager = FleetManager()
 
 # Initialize Remediation Manager (Step 7)
 remediation_manager = RemediationManager()
@@ -4649,6 +4666,233 @@ async def delete_audit_report(report_id: str):
 
 
 # ============================================================================
+# FLEET MANAGEMENT API (PHASE 1: CENTRAL DEPLOYMENT SERVER)
+# ============================================================================
+
+@app.post("/api/fleet/register", response_model=Machine)
+async def register_machine(registration: MachineRegistration):
+    """
+    Register a new machine or update existing machine registration
+    Called by agent on startup
+    """
+    try:
+        machine = fleet_manager.register_machine(registration)
+        return machine
+    except Exception as e:
+        print(f"Error registering machine: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/fleet/heartbeat")
+async def machine_heartbeat(heartbeat: MachineHeartbeat):
+    """
+    Update machine status from agent heartbeat
+    Called periodically by agent (every 30-60 seconds)
+    """
+    try:
+        success = fleet_manager.update_machine_heartbeat(heartbeat)
+        if not success:
+            raise HTTPException(status_code=404, detail="Machine not found")
+        
+        return {"success": True, "message": "Heartbeat received"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error processing heartbeat: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/fleet/machines", response_model=List[Machine])
+async def list_machines(
+    status: Optional[MachineStatus] = None,
+    groups: Optional[str] = None,
+    tags: Optional[str] = None
+):
+    """
+    List all machines in the fleet with optional filters
+    """
+    try:
+        # Parse comma-separated values
+        group_list = groups.split(",") if groups else None
+        tag_list = tags.split(",") if tags else None
+        
+        machines = fleet_manager.list_machines(
+            status=status,
+            groups=group_list,
+            tags=tag_list
+        )
+        return machines
+    except Exception as e:
+        print(f"Error listing machines: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/fleet/machines/{machine_id}", response_model=Machine)
+async def get_machine(machine_id: str):
+    """
+    Get detailed information about a specific machine
+    """
+    machine = fleet_manager.get_machine(machine_id)
+    if not machine:
+        raise HTTPException(status_code=404, detail="Machine not found")
+    return machine
+
+
+@app.put("/api/fleet/machines/groups")
+async def update_machine_groups(request: MachineGroupRequest):
+    """
+    Bulk update machine groups and tags
+    """
+    try:
+        updated_count = fleet_manager.update_machine_groups_tags(request)
+        return {
+            "success": True,
+            "message": f"Updated {updated_count} machines",
+            "updated_count": updated_count
+        }
+    except Exception as e:
+        print(f"Error updating machine groups: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/fleet/machines/{machine_id}")
+async def delete_machine(machine_id: str):
+    """
+    Remove a machine from the fleet
+    """
+    success = fleet_manager.delete_machine(machine_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Machine not found")
+    
+    return {
+        "success": True,
+        "message": "Machine deleted successfully"
+    }
+
+
+@app.get("/api/fleet/statistics", response_model=FleetStatistics)
+async def get_fleet_statistics():
+    """
+    Get fleet-wide statistics and health metrics
+    """
+    try:
+        stats = fleet_manager.get_fleet_statistics()
+        return stats
+    except Exception as e:
+        print(f"Error getting fleet statistics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/fleet/deploy", response_model=RemoteDeployment)
+async def create_remote_deployment(deployment: RemoteDeployment):
+    """
+    Create a new remote deployment to fleet machines
+    """
+    try:
+        created_deployment = fleet_manager.create_deployment(deployment)
+        return created_deployment
+    except Exception as e:
+        print(f"Error creating deployment: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/fleet/deployments", response_model=List[RemoteDeployment])
+async def list_deployments(
+    status: Optional[DeploymentPhase] = None,
+    limit: int = 50
+):
+    """
+    List deployments with optional status filter
+    """
+    try:
+        deployments = fleet_manager.list_deployments(status=status, limit=limit)
+        return deployments
+    except Exception as e:
+        print(f"Error listing deployments: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/fleet/deployments/{deployment_id}", response_model=DeploymentSummary)
+async def get_deployment_summary(deployment_id: str):
+    """
+    Get detailed status of a deployment including per-machine progress
+    """
+    summary = fleet_manager.get_deployment_summary(deployment_id)
+    if not summary:
+        raise HTTPException(status_code=404, detail="Deployment not found")
+    return summary
+
+
+@app.post("/api/fleet/deployments/{deployment_id}/progress")
+async def update_deployment_progress(deployment_id: str, progress: DeploymentProgress):
+    """
+    Update deployment progress from agent
+    Called by agent during deployment execution
+    """
+    try:
+        fleet_manager.update_deployment_progress(progress)
+        return {"success": True, "message": "Progress updated"}
+    except Exception as e:
+        print(f"Error updating deployment progress: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/fleet/commands/{machine_id}", response_model=List[AgentCommand])
+async def get_pending_commands(machine_id: str):
+    """
+    Get pending commands for an agent
+    Called by agent on heartbeat to check for new commands
+    """
+    try:
+        commands = fleet_manager.get_pending_commands(machine_id)
+        return commands
+    except Exception as e:
+        print(f"Error getting pending commands: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/fleet/commands/{command_id}/result")
+async def submit_command_result(command_id: str, result: AgentCommandResult):
+    """
+    Submit command execution result from agent
+    """
+    try:
+        # Store command result (could be enhanced with a command results manager)
+        return {"success": True, "message": "Command result received"}
+    except Exception as e:
+        print(f"Error submitting command result: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.websocket("/ws/fleet")
+async def fleet_websocket(websocket: WebSocket, client_id: Optional[str] = None):
+    """
+    WebSocket endpoint for real-time fleet updates
+    
+    Clients can subscribe to channels:
+    - fleet_status: Overall fleet health and statistics
+    - machine_updates: Individual machine status changes
+    - deployments: Deployment status and progress
+    - alerts: Critical alerts and warnings
+    
+    Message format from client:
+    {
+        "type": "subscribe",
+        "channels": ["fleet_status", "deployments"]
+    }
+    
+    Message format to client:
+    {
+        "message_type": "machine_status",
+        "timestamp": "2024-01-01T12:00:00",
+        "channel": "machine_updates",
+        "data": {...}
+    }
+    """
+    await fleet_websocket_endpoint(websocket, client_id)
+
+
+# ============================================================================
 # APPLICATION STARTUP/SHUTDOWN HANDLERS
 # ============================================================================
 
@@ -4659,6 +4903,12 @@ async def startup_event():
     print("📊 Initializing real-time monitoring...")
     await realtime_manager.start_monitoring()
     print("✅ Real-time monitoring started")
+    
+    # Start fleet management background tasks
+    print("🌐 Starting fleet management...")
+    asyncio.create_task(fleet_offline_check_loop())
+    asyncio.create_task(fleet_statistics_broadcast_loop())
+    print("✅ Fleet management started")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -4667,6 +4917,31 @@ async def shutdown_event():
     print("📊 Stopping real-time monitoring...")
     await realtime_manager.stop_monitoring()
     print("✅ Real-time monitoring stopped")
+
+
+# ============================================================================
+# FLEET MANAGEMENT BACKGROUND TASKS
+# ============================================================================
+
+async def fleet_offline_check_loop():
+    """Background task to check for offline machines"""
+    while True:
+        try:
+            await asyncio.sleep(60)  # Check every minute
+            await fleet_manager.check_offline_machines()
+        except Exception as e:
+            print(f"Error in fleet offline check: {e}")
+
+
+async def fleet_statistics_broadcast_loop():
+    """Background task to broadcast fleet statistics"""
+    while True:
+        try:
+            await asyncio.sleep(30)  # Broadcast every 30 seconds
+            stats = fleet_manager.get_fleet_statistics()
+            await websocket_manager.broadcast_fleet_statistics(stats.dict())
+        except Exception as e:
+            print(f"Error broadcasting fleet statistics: {e}")
 
 
 if __name__ == "__main__":
